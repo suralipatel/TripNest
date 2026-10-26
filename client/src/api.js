@@ -1,7 +1,10 @@
 // TripNest API Client
-const API_BASE =
-  import.meta.env.VITE_API_URL ||
-  (window.location.port === '5173'
+const rawApiUrl = import.meta.env.VITE_API_URL;
+const API_BASE = rawApiUrl
+  ? (rawApiUrl.replace(/\/+$/, '').endsWith('/api')
+      ? rawApiUrl.replace(/\/+$/, '')
+      : `${rawApiUrl.replace(/\/+$/, '')}/api`)
+  : (window.location.port === '5173'
     ? '/api'
     : window.location.origin.includes('localhost')
       ? 'http://localhost:5000/api'
