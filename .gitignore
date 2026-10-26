@@ -1,0 +1,41 @@
+# Node dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment files and credentials
+.env
+.env.local
+.env.*.local
+server/.env
+client/.env
+!.env.example
+!server/.env.example
+!client/.env.example
+
+# Local database file (contains personal account credentials)
+server/data/local-db.json
+
+# Production builds
+dist/
+dist-ssr/
+client/dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS & Editor generated files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
