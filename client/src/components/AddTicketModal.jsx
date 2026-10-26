@@ -1,18 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
+  Upload,
+  FileText,
+  Trash2,
   Plane,
   Train,
   Bus,
   Building2,
-  UploadCloud,
-  FileText,
-  Image as ImageIcon,
-  CheckCircle2,
   Sparkles,
-  Trash2,
   ArrowRight,
+  CheckCircle2,
+  Calendar,
+  Clock,
+  MapPin,
+  Tag,
+  User,
   ShieldCheck,
+  AlertCircle,
 } from 'lucide-react';
 import { parseTicketDocument } from '../utils/ticketParser';
 import { ensureTicketFile } from '../utils/ticketDocumentGenerator';
@@ -26,40 +31,64 @@ export default function AddTicketModal({
 }) {
   const activeTrip = initialTrip || trips[0] || null;
 
-  // ONLY 2 USER FIELDS:
-  // 1. Ticket Type
+  // Selected Category
   const [ticketType, setTicketType] = useState(initialType || 'flight');
-  // 2. Upload File
+  // Uploaded File
   const [ticketFile, setTicketFile] = useState(null); // { dataUrl, name, type, size }
 
-  // Extracted details (automatically populated from uploaded file or smart defaults)
-  const [extractedData, setExtractedData] = useState(null);
+  // Editable Form Fields (auto-populated by AI document parser)
+  const [formData, setFormData] = useState({
+    title: '',
+    provider: '',
+    referenceNumber: '',
+    originName: '',
+    originCode: '',
+    destinationName: '',
+    destinationCode: '',
+    departureDate: '',
+    departureTime: '10:30',
+    arrivalDate: '',
+    arrivalTime: '13:00',
+    passengerName: '',
+    seat: '',
+    gate: '',
+    terminal: '',
+    classType: 'Economy',
+  });
+
+  const [extractedFromDoc, setExtractedFromDoc] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-
   const fileInputRef = useRef(null);
 
-  // Auto-initialize extracted data for the selected ticket type if no file uploaded yet
+  // Initialize defaults based on active trip
   useEffect(() => {
-    let active = true;
-    if (!ticketFile) {
-      parseTicketDocument(null, ticketType, activeTrip).then((res) => {
-        if (active) {
-          setExtractedData(res);
-        }
-      });
-    }
-    return () => {
-      active = false;
-    };
-  }, [ticketType, activeTrip, ticketFile]);
+    if (!ticketFile && !extractedFromDoc) {
+      const defaultDate = activeTrip?.startDate
+        ? activeTrip.startDate.slice(0, 10)
+        : new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10);
 
+      const destName = activeTrip?.destination ? activeTrip.destination.split(',')[0].trim() : '';
+
+      setFormData((prev) => ({
+        ...prev,
+        departureDate: prev.departureDate || defaultDate,
+        arrivalDate: prev.arrivalDate || defaultDate,
+        destinationName: prev.destinationName || destName,
+        destinationCode: prev.destinationCode || (destName ? destName.substring(0, 3).toUpperCase() : ''),
+        originName: prev.originName || (destName ? 'Current City' : ''),
+        classType: ticketType === 'train' ? '3rd AC' : 'Economy',
+      }));
+    }
+  }, [ticketType, activeTrip, ticketFile, extractedFromDoc]);
+
+  // Handle file processing & extraction
   const processFile = async (file, type = ticketType) => {
     if (!file) return;
 
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name);
+    const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|bmp)$/i.test(file.name);
 
     if (!isPdf && !isImage) {
       alert('Please upload a valid PDF document or image file (PNG, JPG, WebP).');
@@ -78,72 +107,101 @@ export default function AddTicketModal({
       };
       setTicketFile(fileData);
 
-      // Automatically extract ticket data from document
       try {
+        // Run deep document text & OCR extraction
         const parsed = await parseTicketDocument(file, type, activeTrip);
-        // Include attached file in parsed payload
-        parsed.ticketFile = fileData;
-        setExtractedData(parsed);
+
+        // Populate all editable fields with real extracted information
+        const depDate = parsed.departureDateTime ? parsed.departureDateTime.slice(0, 10) : '';
+        const depTime = parsed.departureDateTime ? parsed.departureDateTime.slice(11, 16) : '10:30';
+        const arrDate = parsed.arrivalDateTime ? parsed.arrivalDateTime.slice(0, 10) : depDate;
+        const arrTime = parsed.arrivalDateTime ? parsed.arrivalDateTime.slice(11, 16) : '13:00';
+
+        if (parsed.ticketType && parsed.ticketType !== ticketType) {
+          setTicketType(parsed.ticketType);
+        }
+
+        setFormData({
+          title: parsed.title || '',
+          provider: parsed.provider || '',
+          referenceNumber: parsed.referenceNumber || '',
+          originName: parsed.originName || '',
+          originCode: parsed.originCode || '',
+          destinationName: parsed.destinationName || '',
+          destinationCode: parsed.destinationCode || '',
+          departureDate: depDate,
+          departureTime: depTime,
+          arrivalDate: arrDate,
+          arrivalTime: arrTime,
+          passengerName: parsed.passengerName || '',
+          seat: parsed.seat || '',
+          gate: parsed.gate || '',
+          terminal: parsed.terminal || '',
+          classType: parsed.classType || 'Economy',
+        });
+
+        setExtractedFromDoc(true);
       } catch (err) {
         console.error('Extraction error:', err);
       } finally {
-        setTimeout(() => setScanning(false), 450);
+        setScanning(false);
       }
     };
     reader.readAsDataURL(file);
   };
 
-  // Helper to test with sample ticket document
-  const handleSampleTicket = async (sampleType) => {
-    setTicketType(sampleType);
-    setScanning(true);
-
-    // Create a mock sample file
-    const sampleFileName =
-      sampleType === 'flight'
-        ? 'AirIndia_BoardingPass_DEL_BOM.pdf'
-        : sampleType === 'train'
-        ? 'IRCTC_E-Ticket_12431_Rajdhani.pdf'
-        : sampleType === 'bus'
-        ? 'IntrCity_SmartBus_Ticket.pdf'
-        : 'Hotel_Booking_Confirmation.pdf';
-
-    const mockFile = new File(['%PDF-1.4 Mock Ticket Content'], sampleFileName, { type: 'application/pdf' });
-
-    // Use a clean mock ticket dataUrl
-    const sampleDataUrl = 'data:application/pdf;base64,JVBERi0xLjQKJcTl8uXrCg==';
-
-    const fileData = {
-      dataUrl: sampleDataUrl,
-      name: sampleFileName,
-      type: 'pdf',
-      size: 145,
-    };
-    setTicketFile(fileData);
-
-    try {
-      const parsed = await parseTicketDocument(mockFile, sampleType, activeTrip);
-      parsed.ticketFile = fileData;
-      setExtractedData(parsed);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setTimeout(() => setScanning(false), 500);
-    }
+  const handleInputChange = (field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+      // Auto compute codes if name changes
+      ...(field === 'originName' && !prev.originCode
+        ? { originCode: value.slice(0, 3).toUpperCase() }
+        : {}),
+      ...(field === 'destinationName' && !prev.destinationCode
+        ? { destinationCode: value.slice(0, 3).toUpperCase() }
+        : {}),
+    }));
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const finalData = extractedData || (await parseTicketDocument(null, ticketType, activeTrip));
-      const fileToSave = ticketFile || finalData.ticketFile || ensureTicketFile({ ...finalData, ticketType });
-      await onSave({
-        tripId: activeTrip ? (activeTrip._id || activeTrip.id) : '',
+      const depDateTime = formData.departureDate
+        ? `${formData.departureDate}T${formData.departureTime || '00:00'}`
+        : new Date().toISOString().slice(0, 16);
+
+      const arrDateTime = formData.arrivalDate
+        ? `${formData.arrivalDate}T${formData.arrivalTime || '00:00'}`
+        : depDateTime;
+
+      const ticketPayload = {
+        tripId: activeTrip ? activeTrip._id || activeTrip.id : '',
         tripTitle: activeTrip ? activeTrip.title : '',
-        ...finalData,
         ticketType,
-        ticketFile: fileToSave,
-      });
+        title: formData.title || `${ticketType.toUpperCase()} Booking`,
+        provider: formData.provider,
+        referenceNumber: formData.referenceNumber || `REF-${Math.floor(100000 + Math.random() * 900000)}`,
+        originName: formData.originName || 'Departure Hub',
+        originCode: formData.originCode || (formData.originName ? formData.originName.slice(0, 3).toUpperCase() : 'DEP'),
+        destinationName: formData.destinationName || 'Arrival Destination',
+        destinationCode: formData.destinationCode || (formData.destinationName ? formData.destinationName.slice(0, 3).toUpperCase() : 'ARR'),
+        departureDateTime: depDateTime,
+        arrivalDateTime: arrDateTime,
+        passengerName: formData.passengerName,
+        seat: formData.seat,
+        gate: formData.gate,
+        terminal: formData.terminal,
+        classType: formData.classType,
+        price: 0,
+        currency: 'INR',
+        notes: ticketFile ? `Uploaded: ${ticketFile.name}` : 'Saved to wallet',
+      };
+
+      const fileToSave = ticketFile || ensureTicketFile(ticketPayload);
+      ticketPayload.ticketFile = fileToSave;
+
+      await onSave(ticketPayload);
       onClose();
     } catch (err) {
       alert('Error saving ticket: ' + err.message);
@@ -168,15 +226,15 @@ export default function AddTicketModal({
         className="center-popup-modal"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: '92%',
-          maxWidth: 480,
+          width: '94%',
+          maxWidth: 500,
           borderRadius: 24,
           background: '#FFFFFF',
           boxShadow: '0 25px 70px rgba(15, 30, 54, 0.25)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '90vh',
+          maxHeight: '92vh',
         }}
       >
         {/* Header */}
@@ -203,128 +261,137 @@ export default function AddTicketModal({
                 justifyContent: 'center',
               }}
             >
-              <CurrentIcon size={20} strokeWidth={2.4} />
+              <CurrentIcon size={20} />
             </div>
             <div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                Add Ticket to Wallet
-              </h3>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
-                Upload ticket file to auto-extract all details
+              <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                Upload & Add Ticket
+              </h2>
+              <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: 0 }}>
+                Upload any ticket file to extract date, time & route automatically
               </p>
             </div>
           </div>
-
           <button
             type="button"
             onClick={onClose}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 15,
-              background: '#F1F5F9',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#64748B',
-              cursor: 'pointer',
-            }}
+            className="icon-btn"
+            style={{ width: 32, height: 32 }}
           >
-            <X size={17} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Modal Scrollable Content */}
-        <div style={{ padding: '18px 20px 20px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
-          {/* FIELD 1: TICKET TYPE SELECTOR */}
-          <div style={{ marginBottom: 16 }}>
-            <label
+        {/* Scrollable Form Body */}
+        <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+          {/* Active Trip Context Chip */}
+          {activeTrip && (
+            <div
               style={{
-                display: 'block',
-                fontSize: 11.5,
-                fontWeight: 800,
-                color: '#475569',
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: '7px 12px',
+                borderRadius: 10,
+                background: '#F0FDFA',
+                border: '1px solid #CCFBF1',
+                marginBottom: 14,
+                fontSize: 12,
+                color: '#0F766E',
+                fontWeight: 600,
               }}
             >
-              1. Select Ticket Type
+              <span>Linking to Trip:</span>
+              <span style={{ fontWeight: 800, color: '#0D9488' }}>{activeTrip.title}</span>
+            </div>
+          )}
+
+          {/* 1. Category Switcher */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Ticket Category
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: 6,
+                padding: 4,
+                background: '#F1F5F9',
+                borderRadius: 14,
+              }}
+            >
               {categories.map((cat) => {
                 const Icon = cat.icon;
-                const active = ticketType === cat.id;
+                const isSelected = ticketType === cat.id;
                 return (
                   <button
                     key={cat.id}
                     type="button"
-                    onClick={() => {
-                      setTicketType(cat.id);
-                      if (ticketFile) {
-                        // Re-process with new type
-                        processFile(ticketFile, cat.id);
-                      }
-                    }}
+                    onClick={() => setTicketType(cat.id)}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      gap: 5,
-                      padding: '10px 4px',
-                      borderRadius: 14,
-                      border: active ? `2px solid ${cat.color}` : '1.5px solid #E2E8F0',
-                      background: active ? `${cat.color}12` : '#FFFFFF',
-                      color: active ? cat.color : '#64748B',
+                      justifyContent: 'center',
+                      gap: 4,
+                      padding: '8px 4px',
+                      borderRadius: 10,
+                      background: isSelected ? '#FFFFFF' : 'transparent',
+                      color: isSelected ? cat.color : '#64748B',
+                      boxShadow: isSelected ? '0 2px 8px rgba(15, 30, 54, 0.08)' : 'none',
+                      fontWeight: isSelected ? 800 : 600,
+                      fontSize: 11.5,
+                      border: 'none',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
                     }}
                   >
-                    <Icon size={18} strokeWidth={active ? 2.5 : 2} />
-                    <span style={{ fontSize: 11.5, fontWeight: active ? 800 : 600 }}>{cat.label}</span>
+                    <Icon size={16} />
+                    <span>{cat.label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* FIELD 2: UPLOAD TICKET FILE */}
+          {/* 2. Drag & Drop Ticket Upload Zone */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <label
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Upload Ticket Document (PDF or Image)
+              </label>
+              <span
                 style={{
-                  fontSize: 11.5,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 10.5,
                   fontWeight: 800,
-                  color: '#475569',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  margin: 0,
+                  color: '#0D9488',
+                  background: '#F0FDFA',
+                  padding: '2px 7px',
+                  borderRadius: 6,
                 }}
               >
-                2. Upload Ticket (PDF or Image)
-              </label>
-              <span style={{ fontSize: 10.5, color: '#0D9488', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
                 <Sparkles size={11} /> Auto-Extraction
               </span>
             </div>
 
             <input
-              type="file"
               ref={fileInputRef}
+              type="file"
               accept=".pdf,image/png,image/jpeg,image/jpg,image/webp"
-              style={{ display: 'none' }}
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) processFile(f);
+                if (e.target.files && e.target.files[0]) {
+                  processFile(e.target.files[0]);
+                }
               }}
+              style={{ display: 'none' }}
             />
 
-            {/* Upload Drag/Drop Box */}
             {!ticketFile ? (
               <div
-                className={`ticket-file-upload-zone ${dragActive ? 'dragging' : ''}`}
-                onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setDragActive(true);
@@ -333,87 +400,67 @@ export default function AddTicketModal({
                 onDrop={(e) => {
                   e.preventDefault();
                   setDragActive(false);
-                  const f = e.dataTransfer.files?.[0];
-                  if (f) processFile(f);
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    processFile(e.dataTransfer.files[0]);
+                  }
                 }}
-                style={{ padding: '24px 16px', background: '#F8FAFC' }}
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  padding: '22px 16px',
+                  borderRadius: 16,
+                  border: `2px dashed ${dragActive ? '#0D9488' : '#CBD5E1'}`,
+                  background: dragActive ? '#F0FDFA' : '#F8FAFC',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
               >
                 <div
                   style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: 23,
-                    background: 'rgba(13, 148, 136, 0.1)',
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    background: '#E2E8F0',
                     color: '#0D9488',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    marginBottom: 10,
+                    margin: '0 auto 8px',
                   }}
                 >
-                  <UploadCloud size={22} strokeWidth={2.2} />
+                  <Upload size={22} />
                 </div>
-                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-main)', marginBottom: 3 }}>
-                  Click or Drag & Drop Ticket File
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 2 }}>
+                  Tap to upload ticket or drag & drop here
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', maxWidth: 280, margin: '0 auto' }}>
-                  Supports PDF boarding pass, train ticket, bus ticket, or screenshot (PNG, JPG)
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Airline boarding pass, IRCTC ticket, redBus, hotel booking (PDF, JPG, PNG)
                 </div>
               </div>
             ) : (
-              /* Uploaded file preview strip */
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '10px 14px',
-                  borderRadius: 14,
                   background: '#F0FDFA',
+                  borderRadius: 14,
                   border: '1.5px solid #99F6E4',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
-                  {ticketFile.type === 'pdf' ? (
-                    <div
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 8,
-                        background: '#FEE2E2',
-                        color: '#EF4444',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <FileText size={20} />
-                    </div>
-                  ) : (
-                    <img
-                      src={ticketFile.dataUrl}
-                      alt="Thumbnail"
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 8,
-                        objectFit: 'cover',
-                        border: '1px solid #CBD5E1',
-                        flexShrink: 0,
-                      }}
-                    />
-                  )}
-                  <div style={{ overflow: 'hidden', textAlign: 'left' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <FileText size={20} color="#0D9488" />
+                  <div style={{ textAlign: 'left' }}>
                     <div
                       style={{
                         fontSize: 12.5,
                         fontWeight: 700,
                         color: 'var(--text-main)',
-                        whiteSpace: 'nowrap',
+                        maxWidth: 240,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        maxWidth: 220,
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       {ticketFile.name}
@@ -424,97 +471,51 @@ export default function AddTicketModal({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTicketFile(null);
-                    setExtractedData(null);
-                  }}
-                  style={{
-                    padding: '6px',
-                    borderRadius: 8,
-                    background: '#FEE2E2',
-                    border: 'none',
-                    color: '#EF4444',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                  title="Remove File"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      padding: '5px 9px',
+                      borderRadius: 8,
+                      background: '#FFFFFF',
+                      border: '1px solid #CCFBF1',
+                      color: '#0D9488',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Replace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTicketFile(null);
+                      setExtractedFromDoc(false);
+                    }}
+                    style={{
+                      padding: '5px 7px',
+                      borderRadius: 8,
+                      background: '#FEE2E2',
+                      border: 'none',
+                      color: '#EF4444',
+                      cursor: 'pointer',
+                    }}
+                    title="Remove File"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Quick One-Click Sample Presets */}
-          {!ticketFile && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>
-                ⚡ Or Try With 1-Click Sample File:
-              </div>
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-                <button
-                  type="button"
-                  onClick={() => handleSampleTicket('flight')}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 8,
-                    background: '#F0FDFA',
-                    color: '#0D9488',
-                    border: '1px solid #99F6E4',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  ✈️ Air India E-Ticket
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSampleTicket('train')}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 8,
-                    background: '#ECFDF5',
-                    color: '#059669',
-                    border: '1px solid #A7F3D0',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  🚆 IRCTC Rajdhani Ticket
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSampleTicket('bus')}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 8,
-                    background: '#FFFBEB',
-                    color: '#D97706',
-                    border: '1px solid #FDE68A',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  🚌 IntrCity Volvo Ticket
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* SCANNING / ANALYZING STATE */}
+          {/* SCANNING LOADER */}
           {scanning && (
             <div
               style={{
-                padding: '16px',
+                padding: '14px',
                 borderRadius: 14,
                 background: '#F0FDFA',
                 border: '1.5px solid #99F6E4',
@@ -524,72 +525,202 @@ export default function AddTicketModal({
             >
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#0D9488', fontWeight: 800, fontSize: 13 }}>
                 <Sparkles size={16} className="animate-spin" />
-                <span>AI Scanner extracting ticket data from document...</span>
+                <span>Reading ticket & extracting details with AI...</span>
               </div>
               <p style={{ fontSize: 11, color: '#0F766E', margin: '4px 0 0' }}>
-                Fetching PNR, carrier number, route, departure & arrival times...
+                Extracting dates, departure & arrival times, route locations, and PNR...
               </p>
             </div>
           )}
 
-          {/* AUTO-EXTRACTED TICKET DETAILS PREVIEW CARD */}
-          {extractedData && !scanning && (
+          {/* EXTRACTION SUCCESS BANNER */}
+          {extractedFromDoc && !scanning && (
             <div
               style={{
-                padding: '14px',
-                borderRadius: 16,
-                background: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
-                border: '1.5px solid #CBD5E1',
-                marginBottom: 16,
-                boxShadow: '0 2px 8px rgba(15, 30, 54, 0.04)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '9px 12px',
+                borderRadius: 12,
+                background: '#ECFDF5',
+                border: '1px solid #A7F3D0',
+                marginBottom: 14,
+                fontSize: 12,
+                color: '#065F46',
+                fontWeight: 600,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    fontSize: 11,
-                    fontWeight: 800,
-                    color: '#059669',
-                    background: '#ECFDF5',
-                    padding: '3px 8px',
-                    borderRadius: 8,
-                  }}
-                >
-                  <CheckCircle2 size={13} color="#059669" />
-                  Auto-Extracted from File
-                </span>
-                <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#64748B' }}>
-                  {extractedData.referenceNumber}
-                </span>
-              </div>
-
-              {/* Service title */}
-              <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--text-main)', marginBottom: 6 }}>
-                {extractedData.title}
-              </div>
-
-              {/* Route */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                <span>{extractedData.originCode} ({extractedData.originName})</span>
-                <ArrowRight size={14} color="#0D9488" />
-                <span>{extractedData.destinationCode} ({extractedData.destinationName})</span>
-              </div>
-
-              {/* Timings, Seat, Class */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 11.5, color: '#64748B', paddingTop: 6, borderTop: '1px solid #E2E8F0' }}>
-                <span>🕒 <b>Time:</b> {extractedData.departureDateTime?.slice(11, 16) || '10:15'}</span>
-                <span>💺 <b>Seat:</b> {extractedData.seat}</span>
-                <span>🚪 <b>Gate:</b> {extractedData.gate}</span>
-                <span>🎫 <b>Class:</b> {extractedData.classType}</span>
-              </div>
+              <CheckCircle2 size={16} color="#059669" style={{ flexShrink: 0 }} />
+              <span>Details extracted! Review and edit any field below:</span>
             </div>
           )}
+
+          {/* 3. EDITABLE EXTRACTED DETAILS FORM */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Title / Flight or Train Name */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                {ticketType === 'flight' ? 'Flight / Airline Name' : ticketType === 'train' ? 'Train Name & Number' : ticketType === 'bus' ? 'Bus Operator' : 'Hotel Name'}
+              </label>
+              <input
+                type="text"
+                placeholder={ticketType === 'flight' ? 'e.g. IndiGo 6E 2134' : ticketType === 'train' ? 'e.g. 12431 Rajdhani Express' : 'Service Title'}
+                value={formData.title}
+                onChange={(e) => handleInputChange('title', e.target.value)}
+                className="form-input"
+                style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+              />
+            </div>
+
+            {/* Route: From & To */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  From (Origin)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. New Delhi (DEL)"
+                  value={formData.originName}
+                  onChange={(e) => handleInputChange('originName', e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  To (Destination)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Mumbai (BOM)"
+                  value={formData.destinationName}
+                  onChange={(e) => handleInputChange('destinationName', e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                />
+              </div>
+            </div>
+
+            {/* Departure Date & Time */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  Departure Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.departureDate}
+                  onChange={(e) => handleInputChange('departureDate', e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 10px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  Departure Time
+                </label>
+                <input
+                  type="time"
+                  value={formData.departureTime}
+                  onChange={(e) => handleInputChange('departureTime', e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 10px' }}
+                />
+              </div>
+            </div>
+
+            {/* Arrival Date & Time */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  Arrival Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.arrivalDate}
+                  onChange={(e) => handleInputChange('arrivalDate', e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 10px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  Arrival Time
+                </label>
+                <input
+                  type="time"
+                  value={formData.arrivalTime}
+                  onChange={(e) => handleInputChange('arrivalTime', e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 10px' }}
+                />
+              </div>
+            </div>
+
+            {/* PNR / Booking Ref & Seat / Berth */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  PNR / Booking Reference
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Y7KR2P or 2918471049"
+                  value={formData.referenceNumber}
+                  onChange={(e) => handleInputChange('referenceNumber', e.target.value.toUpperCase())}
+                  className="form-input"
+                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px', fontFamily: 'monospace' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  Seat / Berth / Room
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 14A or Coach B2, 24"
+                  value={formData.seat}
+                  onChange={(e) => handleInputChange('seat', e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                />
+              </div>
+            </div>
+
+            {/* Passenger Name & Gate */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  Passenger / Guest Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Passenger Name"
+                  value={formData.passengerName}
+                  onChange={(e) => handleInputChange('passengerName', e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  Gate / Platform
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Gate 4 or Platform 1"
+                  value={formData.gate}
+                  onChange={(e) => handleInputChange('gate', e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* PINNED FOOTER: Save Ticket to Wallet Button (Always 100% Visible & Prominent) */}
+        {/* Pinned Footer Save Button */}
         <div
           style={{
             padding: '14px 20px 16px',

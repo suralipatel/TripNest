@@ -7,7 +7,7 @@ export function generateTicketDocumentSvg(ticket) {
   const title = ticket.title || 'Boarding Pass';
   const provider = ticket.provider || (type === 'flight' ? 'Airline Express' : type === 'train' ? 'Indian Railways' : 'Express Bus');
   const pnr = (ticket.referenceNumber || ticket.pnr || '2918471049').replace(/^PNR[-:\s]*/i, '');
-  const passenger = ticket.passengerName || 'Alex Morgan';
+  const passenger = ticket.passengerName || 'Traveler';
   const seat = ticket.seat || '14A';
   const gate = ticket.gate || (type === 'flight' ? 'Gate 18, T3' : 'Platform 2');
   const classType = ticket.classType || 'Economy';
