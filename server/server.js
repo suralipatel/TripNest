@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { connectDB, getMongoStatus } from './db.js';
 import { getCloudinaryStatus } from './utils/cloudinary.js';
+import { getGeminiApiKey } from './services/geminiTicketExtractor.js';
 import authRoutes from './routes/auth.js';
 import tripsRoutes from './routes/trips.js';
 import ticketsRoutes from './routes/tickets.js';
@@ -29,10 +30,11 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health, DB, and Cloudinary status check
+// Health, DB, Cloudinary, and Gemini status check
 app.get('/api/health', (req, res) => {
   const dbStatus = getMongoStatus();
   const cloudinaryStatus = getCloudinaryStatus();
+  const hasGeminiKey = Boolean(getGeminiApiKey());
   res.json({
     status: 'online',
     appName: 'TripNest API',
@@ -40,6 +42,10 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     database: dbStatus,
     cloudinary: cloudinaryStatus,
+    gemini: {
+      configured: hasGeminiKey,
+      status: hasGeminiKey ? 'Active' : 'Missing GEMINI_API_KEY',
+    },
   });
 });
 

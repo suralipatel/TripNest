@@ -4,7 +4,7 @@ import { TripModel } from '../models/Trip.js';
 import { localStore, getMongoStatus } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { uploadToCloudinary } from '../utils/cloudinary.js';
-import { extractTicketWithGemini } from '../services/geminiTicketExtractor.js';
+import { extractTicketWithGemini, getGeminiApiKey } from '../services/geminiTicketExtractor.js';
 
 const router = express.Router();
 
@@ -30,7 +30,8 @@ router.post('/extract-document', async (req, res) => {
     res.json({ success: true, data: extracted });
   } catch (err) {
     console.error('Gemini extraction error in route:', err.message);
-    const isMissingKey = !process.env.GEMINI_API_KEY || err.message.includes('GEMINI_API_KEY');
+    const hasKey = Boolean(getGeminiApiKey());
+    const isMissingKey = !hasKey || err.message.includes('GEMINI_API_KEY is not configured');
     res.status(isMissingKey ? 400 : 500).json({
       success: false,
       code: isMissingKey ? 'MISSING_GEMINI_KEY' : 'EXTRACTION_FAILED',

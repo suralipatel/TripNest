@@ -1,5 +1,21 @@
 import { GoogleGenAI } from '@google/genai';
 
+export function getGeminiApiKey() {
+  return (
+    process.env.GEMINI_API_KEY ||
+    process.env.GEMINI_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GOOGLE_GEMINI_API_KEY ||
+    process.env.GEMINI ||
+    process.env['Gemini Key'] ||
+    process.env['Gemini_Key'] ||
+    process.env['gemini_api_key'] ||
+    process.env['gemini_key'] ||
+    process.env.API_KEY ||
+    ''
+  ).trim();
+}
+
 /**
  * Intelligent Document & Ticket Extractor using Google Gemini Flash Multimodal AI
  */
@@ -10,10 +26,10 @@ export async function extractTicketWithGemini({
   activeTrip = null,
   ticketTypeHint = '',
 }) {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const apiKey = getGeminiApiKey();
 
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured in server/.env. Please get a free API key from https://aistudio.google.com/');
+    throw new Error('GEMINI_API_KEY is not configured in server environment variables. Please get a free API key from https://aistudio.google.com/');
   }
 
   if (!fileDataUrl) {
