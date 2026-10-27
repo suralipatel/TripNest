@@ -60,6 +60,7 @@ export default function AddTicketModal({
   const [extractedFromDoc, setExtractedFromDoc] = useState(false);
   const [extractionSource, setExtractionSource] = useState(null); // 'gemini' | 'local'
   const [extractionFallbackReason, setExtractionFallbackReason] = useState(null);
+  const [documentNotTicketNotice, setDocumentNotTicketNotice] = useState(null);
   const [isConnectingFlight, setIsConnectingFlight] = useState(false);
   const [layoverInfo, setLayoverInfo] = useState('');
   const [legs, setLegs] = useState([]);
@@ -103,6 +104,7 @@ export default function AddTicketModal({
 
     setScanning(true);
     setExtractionFallbackReason(null);
+    setDocumentNotTicketNotice(null);
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -164,9 +166,12 @@ export default function AddTicketModal({
         console.warn('Gemini extraction error or missing key, falling back to local parser:', geminiErr);
         const errMsg = geminiErr?.message || '';
         const isMissingKey = errMsg.includes('GEMINI_API_KEY') || errMsg.includes('MISSING_GEMINI_KEY');
+        const isDeployed = typeof window !== 'undefined' && !window.location.origin.includes('localhost');
         setExtractionFallbackReason(
           isMissingKey
-            ? 'Add GEMINI_API_KEY to server/.env for intelligent Gemini AI extraction.'
+            ? isDeployed
+              ? 'GEMINI_API_KEY is missing in Render Environment Variables. Set it in Render Dashboard to activate AI extraction.'
+              : 'Add GEMINI_API_KEY to server/.env for intelligent Gemini AI extraction.'
             : 'Gemini AI unavailable right now. Used local document parser fallback.'
         );
       }
@@ -175,6 +180,10 @@ export default function AddTicketModal({
       if (!extractedSuccessfully) {
         try {
           const parsed = await parseTicketDocument(file, type, activeTrip);
+
+          if (parsed && !parsed.isLikelyTicket) {
+            setDocumentNotTicketNotice(`"${file.name}" does not appear to be a travel ticket. Please review and fill in details manually, or upload a flight/train/bus ticket.`);
+          }
 
           const depDate = parsed.departureDateTime ? parsed.departureDateTime.slice(0, 10) : '';
           const depTime = parsed.departureDateTime ? parsed.departureDateTime.slice(11, 16) : '10:30';
@@ -616,6 +625,8 @@ export default function AddTicketModal({
                     onClick={() => {
                       setTicketFile(null);
                       setExtractedFromDoc(false);
+                      setDocumentNotTicketNotice(null);
+                      setExtractionFallbackReason(null);
                     }}
                     style={{
                       padding: '5px 7px',
@@ -694,8 +705,27 @@ export default function AddTicketModal({
               </div>
               {extractionFallbackReason && (
                 <div style={{ fontSize: 11, color: '#B45309', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <AlertCircle size={13} />
+                  <AlertCircle size={13} style={{ flexShrink: 0 }} />
                   <span>{extractionFallbackReason}</span>
+                </div>
+              )}
+              {documentNotTicketNotice && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: '#991B1B',
+                    background: '#FEF2F2',
+                    padding: '6px 9px',
+                    borderRadius: 8,
+                    border: '1px solid #FECACA',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginTop: 2,
+                  }}
+                >
+                  <AlertCircle size={13} style={{ flexShrink: 0, color: '#DC2626' }} />
+                  <span>{documentNotTicketNotice}</span>
                 </div>
               )}
               <div style={{ fontSize: 11, color: '#64748B' }}>

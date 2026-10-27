@@ -224,12 +224,8 @@ export async function parseTicketDocument(file, selectedType = 'flight', trip = 
     }
   }
 
-  // Fallback realistic PNR if none found
-  if (!referenceNumber) {
-    const rAlpha = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const rNum = Math.floor(1000 + Math.random() * 9000);
-    referenceNumber = detectedType === 'train' ? `PNR-${Math.floor(1000000000 + Math.random() * 9000000000)}` : `PNR-${rAlpha}${rNum}`;
-  }
+  // Do NOT invent fake random PNR if none found - keep empty for user to fill
+  // referenceNumber stays empty if not detected
 
   // 3. Extract Locations (Origin & Destination)
   let originName = '';
@@ -237,11 +233,31 @@ export async function parseTicketDocument(file, selectedType = 'flight', trip = 
   let destinationName = '';
   let destinationCode = '';
 
-  // Look for route patterns like "DEL -> BOM", "Delhi to Mumbai", "From: Surat To: Ahmedabad"
-  const fromToMatch = rawText.match(/(?:from|origin|departure\s*city|boarding\s*(?:at|point)?)[:\s]*([A-Za-z\s]{3,25}?)(?:\s+(?:to|destination|arrival\s*city|dropping\s*(?:at|point)?)\s*[:\-]*\s*([A-Za-z\s]{3,25}))/i);
+  const invalidPlaceWords = new Set([
+    'point', 'points', 'grade', 'boarding', 'dropping', 'departure', 'arrival', 'date', 'time',
+    'name', 'student', 'certificate', 'university', 'college', 'school', 'institute', 'department',
+    'course', 'signature', 'verified', 'status', 'total', 'marks', 'score', 'credit', 'credits',
+    'flight', 'train', 'ticket', 'passenger', 'number', 'address', 'details', 'notice', 'award',
+    'hub', 'city', 'state', 'country', 'male', 'female', 'gender', 'age', 'year', 'month'
+  ]);
+
+  const isValidPlace = (txt) => {
+    if (!txt) return false;
+    const clean = txt.trim().toLowerCase();
+    if (clean.length < 3 || clean.length > 25) return false;
+    if (invalidPlaceWords.has(clean)) return false;
+    return true;
+  };
+
+  // Look for route patterns like "From: Mumbai To: Delhi"
+  const fromToMatch = rawText.match(/\b(?:from|origin|departure\s*city|boarding\s*(?:point|at))\s*[:\-]*\s*([A-Za-z\s]{3,20}?)\s+(?:to|destination|arrival\s*city|dropping\s*(?:point|at))\s*[:\-]*\s*([A-Za-z\s]{3,20})\b/i);
   if (fromToMatch) {
-    originName = fromToMatch[1].trim();
-    destinationName = fromToMatch[2].trim();
+    const c1 = fromToMatch[1].trim();
+    const c2 = fromToMatch[2].trim();
+    if (isValidPlace(c1) && isValidPlace(c2)) {
+      originName = c1;
+      destinationName = c2;
+    }
   }
 
   // Check for 3-letter IATA airport codes in the text
@@ -287,10 +303,12 @@ export async function parseTicketDocument(file, selectedType = 'flight', trip = 
     destinationCode = cleanDest.substring(0, 3).toUpperCase();
   }
 
-  if (!originName) originName = 'Origin Hub';
-  if (!originCode) originCode = originName.substring(0, 3).toUpperCase();
-  if (!destinationName) destinationName = 'Destination City';
-  if (!destinationCode) destinationCode = destinationName.substring(0, 3).toUpperCase();
+  if (originName && !originCode) {
+    originCode = originName.substring(0, 3).toUpperCase();
+  }
+  if (destinationName && !destinationCode) {
+    destinationCode = destinationName.substring(0, 3).toUpperCase();
+  }
 
   // 4. Extract Travel Date & Time
   let extractedDate = null;
@@ -337,7 +355,7 @@ export async function parseTicketDocument(file, selectedType = 'flight', trip = 
 
   const departureDateTime = `${baseDate.toISOString().slice(0, 10)}T${timeStr}`;
 
-  // Estimate Arrival Time (+2h for flight, +6h for train, +8h for bus)
+  // Estimate Arrival Time (+2.5h for flight, +6h for train, +8h for bus)
   const durationHours = detectedType === 'flight' ? 2.5 : detectedType === 'train' ? 6 : detectedType === 'bus' ? 8 : 24;
   const arrivalDate = new Date(baseDate.getTime() + durationHours * 3600 * 1000);
   const arrTimeStr = `${String(arrivalDate.getHours()).padStart(2, '0')}:${String(arrivalDate.getMinutes()).padStart(2, '0')}`;
@@ -356,8 +374,8 @@ export async function parseTicketDocument(file, selectedType = 'flight', trip = 
       provider = AIRLINE_CODES[code] || 'Airlines';
       title = `${provider} ${code} ${num}`;
     } else {
-      title = `Flight to ${destinationName.split(' ')[0]}`;
-      provider = 'Airline';
+      title = destinationName ? `Flight to ${destinationName.split(' ')[0]}` : 'Flight Ticket';
+      provider = '';
     }
   } else if (detectedType === 'train') {
     // Look for 5 digit train numbers
@@ -368,14 +386,14 @@ export async function parseTicketDocument(file, selectedType = 'flight', trip = 
     title = tNum ? `${tNum} ${tName}` : `${tName} Train`;
     provider = 'Indian Railways (IRCTC)';
   } else if (detectedType === 'bus') {
-    const busMatch = rawText.match(/\b(IntrCity|Zingbus|FlixBus|redBus|KSRTC|GSRTC|MSRTC|Volvo)\b/i);
-    provider = busMatch ? busMatch[1] : 'Intercity Bus Service';
-    title = `${provider} Premium AC`;
+    const busMatch = rawText.match(/\b(IntrCity|Zingbus|FlixBus|redBus|KSRTC|GSRTC|MSRTC|Volvo|Neeta|SRS|VRL)\b/i);
+    provider = busMatch ? busMatch[1] : '';
+    title = provider ? `${provider} Bus` : 'Bus Ticket';
   } else {
     // Hotel
     const hotelMatch = rawText.match(/(?:hotel|resort|inn|palace|suites)[:\s]*([A-Za-z\s]{3,30})/i);
-    title = hotelMatch ? hotelMatch[1].trim() : `Hotel Stay in ${destinationName.split(' ')[0]}`;
-    provider = 'Hotel & Hospitality';
+    title = hotelMatch ? hotelMatch[1].trim() : (destinationName ? `Hotel in ${destinationName.split(' ')[0]}` : 'Hotel Booking');
+    provider = hotelMatch ? hotelMatch[1].trim() : '';
   }
 
   // 6. Extract Seat / Berth
@@ -385,13 +403,7 @@ export async function parseTicketDocument(file, selectedType = 'flight', trip = 
     seat = seatMatch[1].trim();
   } else if (detectedType === 'flight') {
     const flightSeatMatch = rawText.match(/\b([0-4]?\d[A-F])\b/);
-    seat = flightSeatMatch ? flightSeatMatch[1] : '14A';
-  } else if (detectedType === 'train') {
-    seat = 'Coach B2, Berth 24';
-  } else if (detectedType === 'bus') {
-    seat = 'Seat 12 (Window)';
-  } else {
-    seat = 'Room 302';
+    seat = flightSeatMatch ? flightSeatMatch[1] : '';
   }
 
   // 7. Extract Gate & Terminal
@@ -410,7 +422,17 @@ export async function parseTicketDocument(file, selectedType = 'flight', trip = 
     passengerName = paxMatch[1].trim();
   }
 
+  // Detect whether document actually contains travel-related context
+  const travelKeywords = [
+    'flight', 'boarding pass', 'airline', 'airways', 'indigo', 'air india', 'spicejet', 'vistara',
+    'train', 'irctc', 'railway', 'berth', 'coach', 'pnr',
+    'bus', 'redbus', 'volvo', 'passenger', 'ticket', 'departure', 'arrival', 'seat',
+    'check-in', 'checkout', 'hotel', 'resort', 'booking.com', 'reservation', 'fare'
+  ];
+  const isLikelyTicket = travelKeywords.some((kw) => searchLower.includes(kw));
+
   return {
+    isLikelyTicket,
     ticketType: detectedType,
     title,
     provider,
@@ -424,11 +446,12 @@ export async function parseTicketDocument(file, selectedType = 'flight', trip = 
     passengerName: passengerName || '',
     seat,
     gate: gate || (terminal ? `${terminal}` : ''),
-    terminal: terminal || 'T3',
+    terminal: terminal || '',
     classType: detectedType === 'train' ? '3rd AC' : 'Economy',
     price: 0,
     currency: 'INR',
-    notes: `Extracted from ${file?.name || 'uploaded document'}.`,
-    rawExtractedText: rawText ? rawText.slice(0, 400) : '',
+    notes: isLikelyTicket
+      ? `Extracted from ${file?.name || 'document'}.`
+      : `Extracted from ${file?.name || 'document'}. (Please verify details as this document may not be a travel ticket)`,
   };
 }

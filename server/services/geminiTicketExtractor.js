@@ -33,21 +33,23 @@ export async function extractTicketWithGemini({
     }
   }
 
-  // Sanitize MIME types supported by Gemini
-  const lowerName = fileName.toLowerCase();
-  if (lowerName.endsWith('.pdf')) {
-    resolvedMime = 'application/pdf';
-  } else if (lowerName.endsWith('.png')) {
-    resolvedMime = 'image/png';
-  } else if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) {
-    resolvedMime = 'image/jpeg';
-  } else if (lowerName.endsWith('.webp')) {
-    resolvedMime = 'image/webp';
-  }
-
+  // Supported MIME types for Gemini multimodal
   const supportedMimes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif'];
+
+  // If data URL header did not provide a supported MIME type, derive from fileName
   if (!supportedMimes.includes(resolvedMime)) {
-    resolvedMime = 'application/pdf';
+    const lowerName = (fileName || '').toLowerCase();
+    if (lowerName.endsWith('.pdf')) {
+      resolvedMime = 'application/pdf';
+    } else if (lowerName.endsWith('.png')) {
+      resolvedMime = 'image/png';
+    } else if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) {
+      resolvedMime = 'image/jpeg';
+    } else if (lowerName.endsWith('.webp')) {
+      resolvedMime = 'image/webp';
+    } else {
+      resolvedMime = 'application/pdf';
+    }
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -138,10 +140,11 @@ Expected JSON output format:
   "notes": "Cabin baggage 7kg included"
 }`;
 
-  // Models to attempt: fast and stable flash models (tested: gemini-3.5-flash-lite responds in ~2s)
+  // Models to attempt: fast and stable flash models (tested: gemini-3.5-flash-lite, gemini-3.8-flash)
   const modelsToTry = [
     process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
     'gemini-3.5-flash-lite',
+    'gemini-3.8-flash',
     'gemini-3.5-flash',
     'gemini-flash-latest',
   ];
