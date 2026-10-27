@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { parseTicketDocument } from '../utils/ticketParser';
 import { ensureTicketFile } from '../utils/ticketDocumentGenerator';
+import { api } from '../api';
 
 export default function AddTicketModal({
   trips = [],
@@ -57,6 +58,11 @@ export default function AddTicketModal({
   });
 
   const [extractedFromDoc, setExtractedFromDoc] = useState(false);
+  const [extractionSource, setExtractionSource] = useState(null); // 'gemini' | 'local'
+  const [extractionFallbackReason, setExtractionFallbackReason] = useState(null);
+  const [isConnectingFlight, setIsConnectingFlight] = useState(false);
+  const [layoverInfo, setLayoverInfo] = useState('');
+  const [legs, setLegs] = useState([]);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -96,6 +102,7 @@ export default function AddTicketModal({
     }
 
     setScanning(true);
+    setExtractionFallbackReason(null);
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -107,45 +114,104 @@ export default function AddTicketModal({
       };
       setTicketFile(fileData);
 
+      let extractedSuccessfully = false;
+
+      // 1. Primary: Intelligent Google Gemini Flash Multimodal AI Extraction via Backend
       try {
-        // Run deep document text & OCR extraction
-        const parsed = await parseTicketDocument(file, type, activeTrip);
-
-        // Populate all editable fields with real extracted information
-        const depDate = parsed.departureDateTime ? parsed.departureDateTime.slice(0, 10) : '';
-        const depTime = parsed.departureDateTime ? parsed.departureDateTime.slice(11, 16) : '10:30';
-        const arrDate = parsed.arrivalDateTime ? parsed.arrivalDateTime.slice(0, 10) : depDate;
-        const arrTime = parsed.arrivalDateTime ? parsed.arrivalDateTime.slice(11, 16) : '13:00';
-
-        if (parsed.ticketType && parsed.ticketType !== ticketType) {
-          setTicketType(parsed.ticketType);
-        }
-
-        setFormData({
-          title: parsed.title || '',
-          provider: parsed.provider || '',
-          referenceNumber: parsed.referenceNumber || '',
-          originName: parsed.originName || '',
-          originCode: parsed.originCode || '',
-          destinationName: parsed.destinationName || '',
-          destinationCode: parsed.destinationCode || '',
-          departureDate: depDate,
-          departureTime: depTime,
-          arrivalDate: arrDate,
-          arrivalTime: arrTime,
-          passengerName: parsed.passengerName || '',
-          seat: parsed.seat || '',
-          gate: parsed.gate || '',
-          terminal: parsed.terminal || '',
-          classType: parsed.classType || 'Economy',
+        const res = await api.extractTicketDocument({
+          fileDataUrl: e.target.result,
+          fileName: file.name,
+          mimeType: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
+          activeTrip,
+          ticketType: type,
         });
 
-        setExtractedFromDoc(true);
-      } catch (err) {
-        console.error('Extraction error:', err);
-      } finally {
-        setScanning(false);
+        if (res?.success && res?.data) {
+          const data = res.data;
+          if (data.ticketType && data.ticketType !== ticketType) {
+            setTicketType(data.ticketType);
+          }
+
+          const hasLayover = Boolean(data.isConnectingFlight || (Array.isArray(data.legs) && data.legs.length > 1));
+          setIsConnectingFlight(hasLayover);
+          setLayoverInfo(data.layoverInfo || '');
+          setLegs(Array.isArray(data.legs) ? data.legs : []);
+
+          setFormData({
+            title: data.title || '',
+            provider: data.provider || '',
+            referenceNumber: data.referenceNumber || '',
+            originName: data.originName || '',
+            originCode: data.originCode || '',
+            destinationName: data.destinationName || '',
+            destinationCode: data.destinationCode || '',
+            departureDate: data.departureDate || '',
+            departureTime: data.departureTime || '10:30',
+            arrivalDate: data.arrivalDate || data.departureDate || '',
+            arrivalTime: data.arrivalTime || '13:00',
+            passengerName: data.passengerName || '',
+            seat: data.seat || '',
+            gate: data.gate || '',
+            terminal: data.terminal || '',
+            classType: data.classType || 'Economy',
+          });
+
+          setExtractedFromDoc(true);
+          setExtractionSource('gemini');
+          extractedSuccessfully = true;
+        }
+      } catch (geminiErr) {
+        console.warn('Gemini extraction error or missing key, falling back to local parser:', geminiErr);
+        const errMsg = geminiErr?.message || '';
+        const isMissingKey = errMsg.includes('GEMINI_API_KEY') || errMsg.includes('MISSING_GEMINI_KEY');
+        setExtractionFallbackReason(
+          isMissingKey
+            ? 'Add GEMINI_API_KEY to server/.env for intelligent Gemini AI extraction.'
+            : 'Gemini AI unavailable right now. Used local document parser fallback.'
+        );
       }
+
+      // 2. Fallback: Local Client-side Parser (PDF.js + OCR) if Gemini did not run
+      if (!extractedSuccessfully) {
+        try {
+          const parsed = await parseTicketDocument(file, type, activeTrip);
+
+          const depDate = parsed.departureDateTime ? parsed.departureDateTime.slice(0, 10) : '';
+          const depTime = parsed.departureDateTime ? parsed.departureDateTime.slice(11, 16) : '10:30';
+          const arrDate = parsed.arrivalDateTime ? parsed.arrivalDateTime.slice(0, 10) : depDate;
+          const arrTime = parsed.arrivalDateTime ? parsed.arrivalDateTime.slice(11, 16) : '13:00';
+
+          if (parsed.ticketType && parsed.ticketType !== ticketType) {
+            setTicketType(parsed.ticketType);
+          }
+
+          setFormData({
+            title: parsed.title || '',
+            provider: parsed.provider || '',
+            referenceNumber: parsed.referenceNumber || '',
+            originName: parsed.originName || '',
+            originCode: parsed.originCode || '',
+            destinationName: parsed.destinationName || '',
+            destinationCode: parsed.destinationCode || '',
+            departureDate: depDate,
+            departureTime: depTime,
+            arrivalDate: arrDate,
+            arrivalTime: arrTime,
+            passengerName: parsed.passengerName || '',
+            seat: parsed.seat || '',
+            gate: parsed.gate || '',
+            terminal: parsed.terminal || '',
+            classType: parsed.classType || 'Economy',
+          });
+
+          setExtractedFromDoc(true);
+          setExtractionSource('local');
+        } catch (localErr) {
+          console.error('Local fallback extraction error:', localErr);
+        }
+      }
+
+      setScanning(false);
     };
     reader.readAsDataURL(file);
   };
@@ -181,7 +247,7 @@ export default function AddTicketModal({
         ticketType,
         title: formData.title || `${ticketType.toUpperCase()} Booking`,
         provider: formData.provider,
-        referenceNumber: formData.referenceNumber || `REF-${Math.floor(100000 + Math.random() * 900000)}`,
+        referenceNumber: formData.referenceNumber || (ticketType === 'flight' ? '' : `REF-${Math.floor(100000 + Math.random() * 900000)}`),
         originName: formData.originName || 'Departure Hub',
         originCode: formData.originCode || (formData.originName ? formData.originName.slice(0, 3).toUpperCase() : 'DEP'),
         destinationName: formData.destinationName || 'Arrival Destination',
@@ -193,6 +259,9 @@ export default function AddTicketModal({
         gate: formData.gate,
         terminal: formData.terminal,
         classType: formData.classType,
+        isConnectingFlight,
+        layoverInfo,
+        legs,
         price: 0,
         currency: 'INR',
         notes: ticketFile ? `Uploaded: ${ticketFile.name}` : 'Saved to wallet',
@@ -219,6 +288,60 @@ export default function AddTicketModal({
 
   const currentCategory = categories.find((c) => c.id === ticketType) || categories[0];
   const CurrentIcon = currentCategory.icon;
+
+  const formatHourMin = (timeStr) => {
+    if (!timeStr) return '';
+    const match = String(timeStr).match(/^(\d{1,2}):(\d{2})$/);
+    if (match) {
+      let h = parseInt(match[1], 10);
+      const m = match[2];
+      const meridiem = h >= 12 ? 'PM' : 'AM';
+      if (h > 12) h -= 12;
+      if (h === 0) h = 12;
+      return `${String(h).padStart(2, '0')}:${m} ${meridiem}`;
+    }
+    return timeStr;
+  };
+
+  const getLayoverModalDisplay = () => {
+    if (legs.length < 2) return layoverInfo || 'Layover';
+    const leg1 = legs[0];
+    const leg2 = legs[1];
+    const layoverCode = leg1.destinationCode || leg2.originCode || 'Transfer';
+    const rawCity = leg1.destinationName || leg2.originName || '';
+
+    let durationText = '';
+    const t1 = leg1.arrivalTime;
+    const t2 = leg2.departureTime;
+    if (t1 && t2) {
+      const parseTimeToMins = (str) => {
+        const m = String(str).match(/(\d{1,2}):(\d{2})/);
+        return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+      };
+      const m1 = parseTimeToMins(t1);
+      const m2 = parseTimeToMins(t2);
+      if (m1 !== null && m2 !== null) {
+        let diff = m2 - m1;
+        if (diff < 0) diff += 24 * 60;
+        const h = Math.floor(diff / 60);
+        const mins = diff % 60;
+        durationText = `${h > 0 ? `${h}h ` : ''}${mins > 0 ? `${mins}m` : ''}`.trim();
+      }
+    }
+
+    if (!durationText && layoverInfo) {
+      const durMatch = layoverInfo.match(/(\d+\s*h(?:our)?s?(?:\s*\d+\s*m(?:in)?)?|\d+\s*m(?:in)?)/i);
+      if (durMatch) durationText = durMatch[0];
+    }
+
+    let cleanCity = '';
+    if (rawCity) {
+      const first = rawCity.split(/[\s,]+/)[0].replace(/[^a-zA-Z]/g, '');
+      if (first) cleanCity = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+    }
+    const loc = cleanCity ? `${cleanCity} (${layoverCode})` : layoverCode;
+    return durationText ? `${durationText} layover in ${loc}` : `Layover in ${loc}`;
+  };
 
   return (
     <div className="center-popup-backdrop" onClick={onClose} style={{ zIndex: 160 }}>
@@ -525,33 +648,59 @@ export default function AddTicketModal({
             >
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#0D9488', fontWeight: 800, fontSize: 13 }}>
                 <Sparkles size={16} className="animate-spin" />
-                <span>Reading ticket & extracting details with AI...</span>
+                <span>Reading ticket & extracting details with Gemini AI...</span>
               </div>
               <p style={{ fontSize: 11, color: '#0F766E', margin: '4px 0 0' }}>
-                Extracting dates, departure & arrival times, route locations, and PNR...
+                Analyzing route, departure, arrival, PNR, and seat info with Multimodal Vision...
               </p>
             </div>
           )}
 
-          {/* EXTRACTION SUCCESS BANNER */}
+          {/* EXTRACTION STATUS BANNER */}
           {extractedFromDoc && !scanning && (
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '9px 12px',
+                padding: '10px 14px',
                 borderRadius: 12,
-                background: '#ECFDF5',
-                border: '1px solid #A7F3D0',
+                background: extractionSource === 'gemini' ? 'linear-gradient(135deg, #ECFDF5 0%, #F0FDFA 100%)' : '#FFFBEB',
+                border: `1px solid ${extractionSource === 'gemini' ? '#A7F3D0' : '#FDE68A'}`,
                 marginBottom: 14,
-                fontSize: 12,
-                color: '#065F46',
-                fontWeight: 600,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
               }}
             >
-              <CheckCircle2 size={16} color="#059669" style={{ flexShrink: 0 }} />
-              <span>Details extracted! Review and edit any field below:</span>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 12,
+                  color: extractionSource === 'gemini' ? '#065F46' : '#92400E',
+                  fontWeight: 700,
+                }}
+              >
+                {extractionSource === 'gemini' ? (
+                  <>
+                    <Sparkles size={15} color="#0D9488" style={{ flexShrink: 0 }} />
+                    <span>Extracted by Google Gemini Flash AI ✨</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={15} color="#D97706" style={{ flexShrink: 0 }} />
+                    <span>Details extracted (Local Document Parser)</span>
+                  </>
+                )}
+              </div>
+              {extractionFallbackReason && (
+                <div style={{ fontSize: 11, color: '#B45309', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <AlertCircle size={13} />
+                  <span>{extractionFallbackReason}</span>
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: '#64748B' }}>
+                Review and edit any field below:
+              </div>
             </div>
           )}
 
@@ -571,6 +720,122 @@ export default function AddTicketModal({
                 style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
               />
             </div>
+
+            {/* Connecting / Layover Flights Card if multi-leg flight */}
+            {legs.length > 1 && ticketType === 'flight' && (
+              <div
+                style={{
+                  borderRadius: 14,
+                  border: '1px solid #E2E8F0',
+                  background: '#F8FAFC',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 6, borderBottom: '1px solid #EEF2F6' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                    <Plane size={14} color="#0D9488" style={{ transform: 'rotate(90deg)' }} />
+                    <span>Connecting Journey Details</span>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B', background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '2px 8px', borderRadius: 6 }}>
+                    {legs.length} Flights
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {legs.map((leg, idx) => (
+                    <React.Fragment key={idx}>
+                      {idx > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0', gap: 8 }}>
+                          <div style={{ flex: 1, borderTop: '1px dashed #CBD5E1' }} />
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              padding: '3px 9px',
+                              borderRadius: 20,
+                              background: '#FEF3C7',
+                              border: '1px solid #FDE68A',
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color: '#92400E',
+                            }}
+                          >
+                            <Clock size={11} color="#D97706" />
+                            <span>
+                              {getLayoverModalDisplay()}
+                            </span>
+                          </div>
+                          <div style={{ flex: 1, borderTop: '1px dashed #CBD5E1' }} />
+                        </div>
+                      )}
+
+                      <div
+                        style={{
+                          background: '#FFFFFF',
+                          borderRadius: 10,
+                          padding: '9px 12px',
+                          border: '1px solid #E2E8F0',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span
+                              style={{
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                color: '#0D9488',
+                                letterSpacing: '0.4px',
+                              }}
+                            >
+                              {leg.flightNumber || `Flight ${idx + 1}`}
+                            </span>
+                            {leg.provider && (
+                              <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>
+                                {leg.provider}
+                              </span>
+                            )}
+                          </div>
+                          {leg.seat && (
+                            <span
+                              style={{
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                color: '#475569',
+                                background: '#F8FAFC',
+                                border: '1px solid #E2E8F0',
+                                padding: '2px 7px',
+                                borderRadius: 9999,
+                              }}
+                            >
+                              Seat {leg.seat}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#334155' }}>{leg.originCode || leg.originName}</div>
+                            <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>{formatHourMin(leg.departureTime) || 'TBD'}</div>
+                          </div>
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 10px' }}>
+                            <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
+                            <div style={{ padding: '0 5px', color: '#94A3B8', fontSize: 11 }}>➔</div>
+                            <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 800, color: '#334155' }}>{leg.destinationCode || leg.destinationName}</div>
+                            <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>{formatHourMin(leg.arrivalTime) || 'TBD'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Route: From & To */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -658,35 +923,66 @@ export default function AddTicketModal({
               </div>
             </div>
 
-            {/* PNR / Booking Ref & Seat / Berth */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                  PNR / Booking Reference
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Y7KR2P or 2918471049"
-                  value={formData.referenceNumber}
-                  onChange={(e) => handleInputChange('referenceNumber', e.target.value.toUpperCase())}
-                  className="form-input"
-                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px', fontFamily: 'monospace' }}
-                />
+            {/* Seat / Berth & Class (Ref/PNR is omitted for flights) */}
+            {ticketType === 'flight' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                    Class of Travel
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Economy / Business"
+                    value={formData.classType}
+                    onChange={(e) => handleInputChange('classType', e.target.value)}
+                    className="form-input"
+                    style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                    Seat Number
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 14A"
+                    value={formData.seat}
+                    onChange={(e) => handleInputChange('seat', e.target.value)}
+                    className="form-input"
+                    style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                  />
+                </div>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                  Seat / Berth / Room
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 14A or Coach B2, 24"
-                  value={formData.seat}
-                  onChange={(e) => handleInputChange('seat', e.target.value)}
-                  className="form-input"
-                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
-                />
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                    PNR / Booking Reference
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 2918471049"
+                    value={formData.referenceNumber}
+                    onChange={(e) => handleInputChange('referenceNumber', e.target.value.toUpperCase())}
+                    className="form-input"
+                    style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px', fontFamily: 'monospace' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                    Seat / Berth / Room
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Coach B2, 24"
+                    value={formData.seat}
+                    onChange={(e) => handleInputChange('seat', e.target.value)}
+                    className="form-input"
+                    style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Passenger Name & Gate */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>

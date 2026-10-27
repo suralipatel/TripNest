@@ -249,11 +249,125 @@ router.get('/me', authenticateToken, async (req, res) => {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
-        homeAirport: user.homeAirport || 'JFK',
-        currency: user.currency || 'USD',
+        friends: user.friends || [],
       },
       databaseMode: getMongoStatus(),
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+const DEFAULT_FRIENDS = [
+  { name: 'Priya Patel', email: 'priya@tripnest.in' },
+  { name: 'Rohan Mehta', email: 'rohan@tripnest.in' },
+  { name: 'Aarav Sharma', email: 'aarav@tripnest.in' },
+];
+
+// GET /api/auth/friends
+router.get('/friends', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const { isMongoConnected } = getMongoStatus();
+
+    let user;
+    if (isMongoConnected) {
+      user = await UserModel.findById(userId);
+    } else {
+      user = localStore.findOne('users', (u) => u._id === userId);
+    }
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    let friends = user.friends;
+    if (!friends || friends.length === 0) {
+      friends = DEFAULT_FRIENDS;
+      if (isMongoConnected) {
+        user.friends = friends;
+        await user.save();
+      } else {
+        localStore.update('users', (u) => u._id === userId, { friends });
+      }
+    }
+
+    res.json({ success: true, data: friends });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/auth/friends
+router.post('/friends', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const { name, email } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ success: false, message: 'Friend name and email are required' });
+    }
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+
+    const { isMongoConnected } = getMongoStatus();
+    let user;
+    if (isMongoConnected) {
+      user = await UserModel.findById(userId);
+    } else {
+      user = localStore.findOne('users', (u) => u._id === userId);
+    }
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    let friends = Array.isArray(user.friends) && user.friends.length > 0 ? [...user.friends] : [...DEFAULT_FRIENDS];
+
+    if (friends.some((f) => (f.email || '').toLowerCase().trim() === trimmedEmail)) {
+      return res.status(409).json({ success: false, message: 'Friend with this email already exists' });
+    }
+
+    const newFriend = { name: trimmedName, email: trimmedEmail };
+    friends.push(newFriend);
+
+    if (isMongoConnected) {
+      user.friends = friends;
+      await user.save();
+    } else {
+      localStore.update('users', (u) => u._id === userId, { friends });
+    }
+
+    res.status(201).json({ success: true, message: 'Friend added!', data: friends });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/auth/friends/:email
+router.delete('/friends/:email', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const emailToRemove = decodeURIComponent(req.params.email).toLowerCase().trim();
+
+    const { isMongoConnected } = getMongoStatus();
+    let user;
+    if (isMongoConnected) {
+      user = await UserModel.findById(userId);
+    } else {
+      user = localStore.findOne('users', (u) => u._id === userId);
+    }
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    let friends = Array.isArray(user.friends) && user.friends.length > 0 ? [...user.friends] : [...DEFAULT_FRIENDS];
+    friends = friends.filter((f) => (f.email || '').toLowerCase().trim() !== emailToRemove);
+
+    if (isMongoConnected) {
+      user.friends = friends;
+      await user.save();
+    } else {
+      localStore.update('users', (u) => u._id === userId, { friends });
+    }
+
+    res.json({ success: true, message: 'Friend removed', data: friends });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

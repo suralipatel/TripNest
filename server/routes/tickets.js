@@ -4,10 +4,40 @@ import { TripModel } from '../models/Trip.js';
 import { localStore, getMongoStatus } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { uploadToCloudinary } from '../utils/cloudinary.js';
+import { extractTicketWithGemini } from '../services/geminiTicketExtractor.js';
 
 const router = express.Router();
 
 router.use(authenticateToken);
+
+// POST /api/tickets/extract-document - Extract ticket details from PDF/Image using Gemini Flash Multimodal AI
+router.post('/extract-document', async (req, res) => {
+  try {
+    const { fileDataUrl, fileName, mimeType, activeTrip, ticketType } = req.body;
+
+    if (!fileDataUrl) {
+      return res.status(400).json({ success: false, message: 'No file data received for extraction.' });
+    }
+
+    const extracted = await extractTicketWithGemini({
+      fileDataUrl,
+      fileName,
+      mimeType,
+      activeTrip,
+      ticketTypeHint: ticketType,
+    });
+
+    res.json({ success: true, data: extracted });
+  } catch (err) {
+    console.error('Gemini extraction error in route:', err.message);
+    const isMissingKey = !process.env.GEMINI_API_KEY || err.message.includes('GEMINI_API_KEY');
+    res.status(isMissingKey ? 400 : 500).json({
+      success: false,
+      code: isMissingKey ? 'MISSING_GEMINI_KEY' : 'EXTRACTION_FAILED',
+      message: err.message || 'Failed to extract ticket details with Gemini AI',
+    });
+  }
+});
 
 // GET /api/tickets - List all tickets for current user (owned or shared trips)
 router.get('/', async (req, res) => {
@@ -184,6 +214,9 @@ router.post('/', async (req, res) => {
       gate: gate || '',
       terminal: terminal || '',
       classType: classType || 'Standard',
+      isConnectingFlight: Boolean(req.body.isConnectingFlight),
+      layoverInfo: req.body.layoverInfo || '',
+      legs: Array.isArray(req.body.legs) ? req.body.legs : [],
       qrCodeData: qrData,
       barcodeValue: barcode,
       status: 'confirmed',

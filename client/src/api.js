@@ -59,6 +59,34 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Friends
+  async getFriends() {
+    const res = await fetch(`${API_BASE}/auth/friends`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse(res);
+  },
+
+  async addFriend(friendData) {
+    const res = await fetch(`${API_BASE}/auth/friends`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(friendData),
+    });
+    return handleResponse(res);
+  },
+
+  async deleteFriend(email) {
+    const res = await fetch(`${API_BASE}/auth/friends/${encodeURIComponent(email)}`, {
+      method: 'DELETE',
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse(res);
+  },
+
   // Trips
   async getTrips() {
     const res = await fetch(`${API_BASE}/trips`, {
@@ -165,6 +193,18 @@ export const api = {
   },
 
   // Tickets
+  async extractTicketDocument(payload) {
+    const res = await fetch(`${API_BASE}/tickets/extract-document`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(res);
+  },
+
   async getTickets(filters = {}) {
     const query = new URLSearchParams();
     if (filters.tripId) query.append('tripId', filters.tripId);

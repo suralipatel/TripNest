@@ -1,29 +1,134 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api';
 import {
   User,
-  Mail,
-  Plane,
-  Database,
-  Globe,
+  Users,
+  UserPlus,
+  Trash2,
+  X,
+  Check,
   LogOut,
   Sparkles,
-  ShieldCheck,
-  Smartphone,
-  Compass,
 } from 'lucide-react';
 
+const DEFAULT_FRIENDS = [
+  { name: 'Priya Patel', email: 'priya@tripnest.in' },
+  { name: 'Rohan Mehta', email: 'rohan@tripnest.in' },
+  { name: 'Aarav Sharma', email: 'aarav@tripnest.in' },
+];
+
 export default function ProfileScreen({ trips = [], tickets = [], onOpenAuth }) {
-  const { user, logout, demoLogin, dbMode } = useAuth();
+  const { user, logout, demoLogin } = useAuth();
+
+  const [friends, setFriends] = useState(() => {
+    try {
+      const cached = localStorage.getItem('tripnest_friends');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_FRIENDS;
+  });
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newFriendName, setNewFriendName] = useState('');
+  const [newFriendEmail, setNewFriendEmail] = useState('');
+  const [friendError, setFriendError] = useState('');
+
+  // Fetch from backend and keep synced
+  useEffect(() => {
+    async function loadFriends() {
+      try {
+        const res = await api.getFriends();
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setFriends(res.data);
+          localStorage.setItem('tripnest_friends', JSON.stringify(res.data));
+        }
+      } catch (err) {
+        console.warn('Could not fetch friends from API, using cached:', err.message);
+      }
+    }
+    loadFriends();
+  }, [user]);
 
   const getInitials = (name) => {
     if (!name) return 'TN';
     return name
       .split(' ')
+      .filter(Boolean)
       .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const getAvatarGradient = (str = '') => {
+    const gradients = [
+      'linear-gradient(135deg, #0D9488 0%, #2DD4BF 100%)',
+      'linear-gradient(135deg, #6366F1 0%, #A855F7 100%)',
+      'linear-gradient(135deg, #EC4899 0%, #F43F5E 100%)',
+      'linear-gradient(135deg, #F59E0B 0%, #F97316 100%)',
+      'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+      'linear-gradient(135deg, #0284C7 0%, #38BDF8 100%)',
+    ];
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) hash = (hash << 5) - hash + str.charCodeAt(i);
+    return gradients[Math.abs(hash) % gradients.length];
+  };
+
+  const handleAddFriend = async (e) => {
+    if (e) e.preventDefault();
+    setFriendError('');
+
+    const trimmedName = newFriendName.trim();
+    const trimmedEmail = newFriendEmail.trim().toLowerCase();
+
+    if (!trimmedName) {
+      setFriendError("Please enter your friend's name.");
+      return;
+    }
+    if (!trimmedEmail) {
+      setFriendError("Please enter your friend's email address.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setFriendError('Please enter a valid email address (e.g. name@gmail.com).');
+      return;
+    }
+    if (friends.some((f) => (f.email || '').toLowerCase().trim() === trimmedEmail)) {
+      setFriendError('A friend with this email already exists in your list.');
+      return;
+    }
+
+    const newFriend = { name: trimmedName, email: trimmedEmail };
+    const updated = [...friends, newFriend];
+    setFriends(updated);
+    localStorage.setItem('tripnest_friends', JSON.stringify(updated));
+    setNewFriendName('');
+    setNewFriendEmail('');
+    setShowAddForm(false);
+
+    try {
+      await api.addFriend(newFriend);
+    } catch (err) {
+      console.warn('Could not sync friend to backend:', err.message);
+    }
+  };
+
+  const handleDeleteFriend = async (emailToDelete) => {
+    const updated = friends.filter(
+      (f) => (f.email || '').toLowerCase().trim() !== emailToDelete.toLowerCase().trim()
+    );
+    setFriends(updated);
+    localStorage.setItem('tripnest_friends', JSON.stringify(updated));
+
+    try {
+      await api.deleteFriend(emailToDelete);
+    } catch (err) {
+      console.warn('Could not sync friend deletion to backend:', err.message);
+    }
   };
 
   // Distinct countries visited/planned
@@ -106,84 +211,352 @@ export default function ProfileScreen({ trips = [], tickets = [], onOpenAuth }) 
         </div>
       </div>
 
-      {/* Account Settings / Preferences */}
+      {/* Travel Friends Section */}
       <div
         style={{
           background: '#FFFFFF',
           borderRadius: 20,
-          padding: '14px 18px',
+          padding: '16px 18px',
           border: '1px solid var(--border-subtle)',
           boxShadow: 'var(--shadow-subtle)',
           marginBottom: 18,
         }}
       >
-        <h3 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>
-          Travel Preferences
-        </h3>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Plane size={16} color="var(--teal-primary)" />
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-main)' }}>Home Airport</span>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 12,
+            gap: 8,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: 'var(--teal-ultralight)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--teal-primary)',
+                flexShrink: 0,
+              }}
+            >
+              <Users size={18} />
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <h3
+                  style={{
+                    fontSize: 14.5,
+                    fontWeight: 800,
+                    color: 'var(--text-main)',
+                    margin: 0,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Travel Friends
+                </h3>
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    color: 'var(--teal-primary)',
+                    background: 'var(--teal-ultralight)',
+                    padding: '2px 7px',
+                    borderRadius: 10,
+                    flexShrink: 0,
+                  }}
+                >
+                  {friends.length}
+                </span>
+              </div>
+              <p
+                style={{
+                  fontSize: 11.5,
+                  color: 'var(--text-secondary)',
+                  margin: '1px 0 0',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                Select them by name when planning trips
+              </p>
+            </div>
           </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', background: '#F1F5F9', padding: '3px 8px', borderRadius: 8 }}>
-            {user?.homeAirport || 'JFK'}
-          </span>
+
+          {!showAddForm && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddForm(true);
+                setFriendError('');
+              }}
+              title="Add Travel Friend"
+              aria-label="Add Travel Friend"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: 'var(--teal-ultralight)',
+                color: 'var(--teal-primary)',
+                border: '1px solid var(--teal-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+                boxShadow: '0 1px 3px rgba(13, 148, 136, 0.08)',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--teal-primary)';
+                e.currentTarget.style.color = '#FFFFFF';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--teal-ultralight)';
+                e.currentTarget.style.color = 'var(--teal-primary)';
+              }}
+            >
+              <UserPlus size={17} />
+            </button>
+          )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Globe size={16} color="var(--teal-primary)" />
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-main)' }}>Currency</span>
-          </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', background: '#F1F5F9', padding: '3px 8px', borderRadius: 8 }}>
-            {user?.currency || 'INR'} (₹)
-          </span>
-
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Database size={16} color="#059669" />
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-main)' }}>Data Storage</span>
-          </div>
-          <span
+        {/* Add Friend Form (expandable) */}
+        {showAddForm && (
+          <form
+            onSubmit={handleAddFriend}
             style={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: '#059669',
-              background: '#ECFDF5',
-              padding: '3px 9px',
-              borderRadius: 20,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
+              background: '#F8FAFC',
+              borderRadius: 14,
+              padding: 14,
+              border: '1px solid #E2E8F0',
+              marginBottom: 14,
             }}
           >
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981' }} />
-            <span>{dbMode}</span>
-          </span>
-        </div>
-      </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 10,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <UserPlus size={14} color="var(--teal-primary)" />
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>
+                  Add a Travel Companion
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddForm(false);
+                  setFriendError('');
+                }}
+                title="Cancel"
+                aria-label="Cancel"
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  background: '#E2E8F0',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#FEE2E2';
+                  e.currentTarget.style.color = '#EF4444';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#E2E8F0';
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
 
-      {/* App & Tech Stack Info */}
-      <div
-        style={{
-          background: '#FFFFFF',
-          borderRadius: 20,
-          padding: '14px 18px',
-          border: '1px solid var(--border-subtle)',
-          boxShadow: 'var(--shadow-subtle)',
-          marginBottom: 18,
-        }}
-      >
-        <h3 style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-          TripNest Engine
-        </h3>
-        <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
-          <strong>Tagline:</strong> “Every trip. Every ticket. One place.”<br />
-          <strong>Stack:</strong> React + Vite, Node.js + Express, MongoDB + Mongoose, Mobile-First CSS.
-        </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <input
+                type="text"
+                placeholder="Friend's Full Name (e.g. Priya Patel)"
+                value={newFriendName}
+                onChange={(e) => {
+                  setNewFriendName(e.target.value);
+                  if (friendError) setFriendError('');
+                }}
+                autoFocus
+                className="form-input"
+                style={{ height: 38, fontSize: 13, background: '#FFFFFF' }}
+              />
+              <input
+                type="email"
+                placeholder="Friend's Email (e.g. priya@gmail.com)"
+                value={newFriendEmail}
+                onChange={(e) => {
+                  setNewFriendEmail(e.target.value);
+                  if (friendError) setFriendError('');
+                }}
+                className="form-input"
+                style={{ height: 38, fontSize: 13, background: '#FFFFFF' }}
+              />
+            </div>
+
+            {friendError && (
+              <div style={{ color: '#EF4444', fontSize: 11.5, marginTop: 6, fontWeight: 600 }}>
+                {friendError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+              <button
+                type="submit"
+                className="btn-primary"
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  height: 32,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                }}
+              >
+                <Check size={13} strokeWidth={2.5} />
+                <span>Save Friend</span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Friends List */}
+        {friends.length === 0 ? (
+          <div
+            style={{
+              padding: '24px 16px',
+              textAlign: 'center',
+              background: '#F8FAFC',
+              borderRadius: 14,
+              border: '1.5px dashed #E2E8F0',
+            }}
+          >
+            <Users size={28} color="var(--text-muted)" style={{ margin: '0 auto 6px' }} />
+            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', margin: '0 0 2px' }}>
+              No Friends Added Yet
+            </p>
+            <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: 0 }}>
+              Add friends above to easily share trips with them with a single click.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {friends.map((friend) => (
+              <div
+                key={friend.email}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 19,
+                      background: getAvatarGradient(friend.name || friend.email),
+                      color: '#FFFFFF',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: '0 2px 6px rgba(15, 30, 54, 0.08)',
+                    }}
+                  >
+                    {getInitials(friend.name || friend.email)}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13.5,
+                        fontWeight: 700,
+                        color: 'var(--text-main)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {friend.name}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: 'var(--text-secondary)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {friend.email}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleDeleteFriend(friend.email)}
+                  title={`Remove ${friend.name}`}
+                  aria-label={`Remove ${friend.name}`}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#94A3B8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    marginLeft: 6,
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#FEE2E2';
+                    e.currentTarget.style.color = '#EF4444';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#94A3B8';
+                  }}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Auth action buttons */}

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MapPin, Calendar, Sparkles, Upload, Camera, RotateCcw, Check, Users, UserPlus, Pencil } from 'lucide-react';
+import { X, Sparkles, Camera, RotateCcw, Check, Users, Plus, Pencil, Search } from 'lucide-react';
+import { api } from '../api';
 
 // Intelligent cover image matcher based on destination/city keywords
 function getDefaultTripImage(destination = '') {
@@ -125,18 +126,6 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
   const [customImage, setCustomImage] = useState(tripToEdit?.coverImage || null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  // Friends & Collaborators state
-  const [friends, setFriends] = useState(
-    (tripToEdit?.sharedWith || []).map((f) => ({
-      name: f.name || '',
-      email: (f.email || '').toLowerCase().trim(),
-      role: f.role || 'viewer',
-    }))
-  );
-  const [friendName, setFriendName] = useState('');
-  const [friendEmail, setFriendEmail] = useState('');
-  const [friendError, setFriendError] = useState('');
-
   const fileInputRef = useRef(null);
 
   // Auto-detect default theme image based on typed destination
@@ -166,46 +155,124 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
     }
   };
 
-  // Add friend handler
-  const handleAddFriend = (e) => {
-    if (e) e.preventDefault();
-    setFriendError('');
-    const trimmedEmail = friendEmail.trim().toLowerCase();
-    const trimmedName = friendName.trim() || trimmedEmail.split('@')[0];
+  // Friends & Collaborators state
+  const [friends, setFriends] = useState(
+    (tripToEdit?.sharedWith || []).map((f) => ({
+      name: f.name || '',
+      email: (f.email || '').toLowerCase().trim(),
+      role: f.role || 'viewer',
+    }))
+  );
 
-    if (!trimmedEmail) {
-      setFriendError('Please enter an email address.');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setFriendError('Please enter a valid email address (e.g. name@gmail.com).');
-      return;
-    }
-    if (friends.some((f) => (f.email || '').toLowerCase().trim() === trimmedEmail)) {
-      setFriendError('This friend is already added to the trip.');
-      return;
-    }
+  const [savedFriends, setSavedFriends] = useState(() => {
+    try {
+      const cached = localStorage.getItem('tripnest_friends');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      { name: 'Priya Patel', email: 'priya@tripnest.in' },
+      { name: 'Rohan Mehta', email: 'rohan@tripnest.in' },
+      { name: 'Aarav Sharma', email: 'aarav@tripnest.in' },
+    ];
+  });
 
-    setFriends([
-      ...friends,
-      {
-        name: trimmedName,
-        email: trimmedEmail,
-        role: 'viewer',
-        addedAt: new Date().toISOString(),
-      },
-    ]);
-    setFriendName('');
-    setFriendEmail('');
+  const [showQuickAddFriend, setShowQuickAddFriend] = useState(false);
+  const [quickFriendName, setQuickFriendName] = useState('');
+  const [quickFriendEmail, setQuickFriendEmail] = useState('');
+  const [quickFriendError, setQuickFriendError] = useState('');
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
+
+  const displayFriends = savedFriends.filter((f) => {
+    if (!friendSearchQuery.trim()) return true;
+    const q = friendSearchQuery.toLowerCase().trim();
+    return (
+      (f.name && f.name.toLowerCase().includes(q)) ||
+      (f.email && f.email.toLowerCase().includes(q))
+    );
+  });
+
+  // Fetch saved travel friends from backend
+  useEffect(() => {
+    async function loadSavedFriends() {
+      try {
+        const res = await api.getFriends();
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setSavedFriends(res.data);
+          localStorage.setItem('tripnest_friends', JSON.stringify(res.data));
+        }
+      } catch (err) {
+        // Fallback to cached friends is already set
+      }
+    }
+    loadSavedFriends();
+  }, []);
+
+  const isFriendSelected = (friendEmail) => {
+    const target = (friendEmail || '').toLowerCase().trim();
+    return friends.some((f) => (f.email || '').toLowerCase().trim() === target);
   };
 
-  // Remove friend handler
-  const handleRemoveFriend = (emailToRemove) => {
-    setFriends(
-      friends.filter(
-        (f) => (f.email || '').toLowerCase().trim() !== emailToRemove.toLowerCase().trim()
-      )
-    );
+  const handleToggleFriend = (friend) => {
+    const targetEmail = (friend.email || '').toLowerCase().trim();
+    if (isFriendSelected(targetEmail)) {
+      setFriends(friends.filter((f) => (f.email || '').toLowerCase().trim() !== targetEmail));
+    } else {
+      setFriends([
+        ...friends,
+        {
+          name: friend.name || targetEmail.split('@')[0],
+          email: targetEmail,
+          role: 'viewer',
+          addedAt: new Date().toISOString(),
+        },
+      ]);
+    }
+  };
+
+  const handleQuickAddFriend = async (e) => {
+    if (e) e.preventDefault();
+    setQuickFriendError('');
+    const name = quickFriendName.trim();
+    const email = quickFriendEmail.trim().toLowerCase();
+
+    if (!name) {
+      setQuickFriendError("Please enter friend's name.");
+      return;
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setQuickFriendError('Please enter a valid email address.');
+      return;
+    }
+    if (savedFriends.some((f) => (f.email || '').toLowerCase().trim() === email)) {
+      setQuickFriendError('This friend is already in your friends list.');
+      return;
+    }
+
+    const newFriend = { name, email };
+    const updatedSaved = [...savedFriends, newFriend];
+    setSavedFriends(updatedSaved);
+    localStorage.setItem('tripnest_friends', JSON.stringify(updatedSaved));
+
+    // Automatically select for this trip
+    if (!friends.some((f) => (f.email || '').toLowerCase().trim() === email)) {
+      setFriends([
+        ...friends,
+        { name, email, role: 'viewer', addedAt: new Date().toISOString() },
+      ]);
+    }
+
+    setQuickFriendName('');
+    setQuickFriendEmail('');
+    setShowQuickAddFriend(false);
+
+    try {
+      await api.addFriend(newFriend);
+    } catch (err) {
+      console.warn('Could not sync friend to backend:', err.message);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -428,27 +495,25 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
               />
             </div>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Departure Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="form-input"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Return Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="form-input"
-                />
-              </div>
+            <div className="form-group">
+              <label className="form-label">Departure Date *</label>
+              <input
+                type="date"
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="form-input"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Return Date *</label>
+              <input
+                type="date"
+                required
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="form-input"
+              />
             </div>
 
             <div className="form-group">
@@ -468,193 +533,374 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
                 background: '#F8FAFC',
                 border: '1.5px solid #E2E8F0',
                 borderRadius: 16,
-                padding: '14px 14px 12px',
+                padding: '14px',
                 marginBottom: 16,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <Users size={16} color="var(--teal-primary)" />
                   <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>
-                    Add Friends & Companions
+                    Share Trip with Friends
                   </span>
                 </div>
-                {friends.length > 0 && (
-                  <span
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {friends.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: 'var(--teal-primary)',
+                        background: 'var(--teal-ultralight)',
+                        padding: '2px 8px',
+                        borderRadius: 12,
+                      }}
+                    >
+                      {friends.length} Selected
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickAddFriend(!showQuickAddFriend);
+                      setQuickFriendError('');
+                    }}
                     style={{
-                      fontSize: 11,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '5px 12px',
+                      borderRadius: 20,
+                      background: showQuickAddFriend ? '#E2E8F0' : 'var(--teal-ultralight)',
+                      border: '1.5px solid var(--teal-light, #99F6E4)',
+                      color: showQuickAddFriend ? 'var(--text-secondary)' : 'var(--teal-primary)',
+                      fontSize: 11.5,
                       fontWeight: 700,
-                      color: 'var(--teal-primary)',
-                      background: 'var(--teal-ultralight)',
-                      padding: '2px 8px',
-                      borderRadius: 12,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 3px rgba(15, 30, 54, 0.05)',
                     }}
                   >
-                    {friends.length} {friends.length === 1 ? 'Friend' : 'Friends'}
-                  </span>
-                )}
+                    <Plus size={14} strokeWidth={2.6} />
+                    <span>{showQuickAddFriend ? 'Cancel' : 'Add Friend'}</span>
+                  </button>
+                </div>
               </div>
 
-              <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.4 }}>
-                Friends you add by email can view all tickets, boarding passes, and trip itinerary.
-              </p>
-
-              {/* Add Friend Inputs */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 8 }}>
-                  <input
-                    type="text"
-                    placeholder="Friend's Name"
-                    value={friendName}
-                    onChange={(e) => {
-                      setFriendName(e.target.value);
-                      if (friendError) setFriendError('');
-                    }}
-                    className="form-input"
-                    style={{ height: 38, fontSize: 12 }}
-                  />
-                  <input
-                    type="email"
-                    placeholder="Friend's Email"
-                    value={friendEmail}
-                    onChange={(e) => {
-                      setFriendEmail(e.target.value);
-                      if (friendError) setFriendError('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddFriend();
-                      }
-                    }}
-                    className="form-input"
-                    style={{ height: 38, fontSize: 12 }}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleAddFriend}
+              {/* Dedicated Add Friend Section Container with Internal Close Button & Full Width Fields */}
+              {showQuickAddFriend && (
+                <div
                   style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: 'var(--teal-ultralight)',
-                    border: '1px solid var(--teal-light)',
-                    color: 'var(--teal-primary)',
-                    padding: '7px 12px',
-                    borderRadius: 10,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    alignSelf: 'flex-start',
-                    transition: 'all 0.15s ease',
+                    background: '#FFFFFF',
+                    border: '1.5px solid var(--teal-light, #99F6E4)',
+                    borderRadius: 14,
+                    padding: '14px',
+                    marginBottom: 12,
+                    boxShadow: '0 4px 14px rgba(13, 148, 136, 0.08)',
+                    position: 'relative',
                   }}
                 >
-                  <UserPlus size={14} />
-                  <span>+ Add Friend</span>
-                </button>
-              </div>
+                  {/* Header fitted inside the section container */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 12,
+                      paddingBottom: 8,
+                      borderBottom: '1px solid #F1F5F9',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Plus size={15} strokeWidth={2.6} color="var(--teal-primary)" />
+                      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main)' }}>
+                        Add Friend
+                      </span>
+                    </div>
 
-              {friendError && (
-                <div style={{ color: '#EF4444', fontSize: 11.5, marginTop: 6, fontWeight: 600 }}>
-                  {friendError}
+                    {/* Close button fitted INSIDE the section container */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowQuickAddFriend(false);
+                        setQuickFriendError('');
+                      }}
+                      title="Close"
+                      aria-label="Close"
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 13,
+                        background: '#F1F5F9',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#E2E8F0';
+                        e.currentTarget.style.color = '#0F1E36';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = '#F1F5F9';
+                        e.currentTarget.style.color = 'var(--text-secondary)';
+                      }}
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  {/* Both Fields in Full Width */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 4 }}>
+                        Friend's Full Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Maya Verma"
+                        value={quickFriendName}
+                        onChange={(e) => {
+                          setQuickFriendName(e.target.value);
+                          if (quickFriendError) setQuickFriendError('');
+                        }}
+                        className="form-input"
+                        style={{ width: '100%', height: 38, fontSize: 13, borderRadius: 10, boxSizing: 'border-box' }}
+                        autoFocus
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 4 }}>
+                        Email Address *
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="e.g. maya@tripnest.in"
+                        value={quickFriendEmail}
+                        onChange={(e) => {
+                          setQuickFriendEmail(e.target.value);
+                          if (quickFriendError) setQuickFriendError('');
+                        }}
+                        className="form-input"
+                        style={{ width: '100%', height: 38, fontSize: 13, borderRadius: 10, boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    {quickFriendError && (
+                      <div style={{ color: '#EF4444', fontSize: 11.5, fontWeight: 600 }}>
+                        {quickFriendError}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleQuickAddFriend}
+                      className="btn-primary"
+                      style={{
+                        width: '100%',
+                        height: 38,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        borderRadius: 10,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        marginTop: 2,
+                      }}
+                    >
+                      <Check size={16} strokeWidth={2.5} />
+                      <span>Add & Select Friend</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
-              {/* List of Added Friends */}
-              {friends.length > 0 && (
-                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {friends.map((friend) => (
-                    <div
-                      key={friend.email}
+              <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.4 }}>
+                Select friends by name to share this trip, boarding passes, and itinerary with them:
+              </p>
+
+              {/* Quick Search bar if there are 6 or more friends */}
+              {savedFriends.length >= 6 && (
+                <div style={{ position: 'relative', marginBottom: 10 }}>
+                  <Search
+                    size={13}
+                    style={{
+                      position: 'absolute',
+                      left: 10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-muted)',
+                    }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Search friends by name or email..."
+                    value={friendSearchQuery}
+                    onChange={(e) => setFriendSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: 32,
+                      paddingLeft: 30,
+                      paddingRight: 10,
+                      borderRadius: 12,
+                      border: '1px solid #CBD5E1',
+                      background: '#FFFFFF',
+                      fontSize: 12,
+                      color: 'var(--text-main)',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Friends selectable chips */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  marginBottom: 8,
+                  maxHeight: 140,
+                  overflowY: 'auto',
+                  padding: '2px 2px 4px',
+                  scrollbarWidth: 'thin',
+                }}
+              >
+                {displayFriends.map((f) => {
+                  const selected = isFriendSelected(f.email);
+                  return (
+                    <button
+                      key={f.email}
+                      type="button"
+                      onClick={() => handleToggleFriend(f)}
                       style={{
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
-                        background: '#FFFFFF',
-                        border: '1px solid #E2E8F0',
-                        borderRadius: 10,
-                        padding: '6px 10px',
-                        boxShadow: '0 1px 3px rgba(15, 30, 54, 0.04)',
+                        gap: 8,
+                        padding: '6px 12px 6px 8px',
+                        borderRadius: 24,
+                        background: selected ? 'var(--teal-ultralight)' : '#FFFFFF',
+                        border: selected ? '1.5px solid var(--teal-primary)' : '1.5px solid #CBD5E1',
+                        color: selected ? 'var(--teal-primary)' : 'var(--text-main)',
+                        boxShadow: selected ? '0 2px 6px var(--teal-glow)' : '0 1px 3px rgba(15, 30, 54, 0.04)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      {/* Avatar Circle with initials / check */}
+                      <div
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          background: selected ? 'var(--teal-primary)' : '#E2E8F0',
+                          color: selected ? '#FFFFFF' : 'var(--text-secondary)',
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {selected ? (
+                          <Check size={13} strokeWidth={3} />
+                        ) : (
+                          (f.name || f.email || 'F').charAt(0).toUpperCase()
+                        )}
+                      </div>
+
+                      {/* Friend Name */}
+                      <span style={{ fontSize: 12.5, fontWeight: selected ? 800 : 600 }}>
+                        {f.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Selection Status Summary with Avatar Stack (Supports 20+ friends gracefully) */}
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: friends.length > 0 ? 'var(--teal-primary)' : 'var(--text-muted)',
+                  marginTop: 6,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                {friends.length > 0 ? (
+                  <>
+                    {/* Overlapping mini avatar stack */}
+                    <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      {friends.slice(0, 4).map((f, i) => (
                         <div
+                          key={f.email}
+                          title={f.name || f.email}
                           style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 12,
+                            width: 22,
+                            height: 22,
+                            borderRadius: 11,
                             background: 'linear-gradient(135deg, var(--teal-primary) 0%, #2DD4BF 100%)',
                             color: '#FFFFFF',
-                            fontSize: 11,
+                            fontSize: 9.5,
                             fontWeight: 800,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            flexShrink: 0,
+                            border: '2px solid #FFFFFF',
+                            marginLeft: i > 0 ? -6 : 0,
+                            boxShadow: '0 1px 3px rgba(15, 30, 54, 0.1)',
                           }}
                         >
-                          {(friend.name || friend.email || 'F').charAt(0).toUpperCase()}
+                          {(f.name || f.email || 'F').charAt(0).toUpperCase()}
                         </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: 'var(--text-main)',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {friend.name || friend.email.split('@')[0]}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 10.5,
-                              color: 'var(--text-muted)',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {friend.email}
-                          </div>
+                      ))}
+                      {friends.length > 4 && (
+                        <div
+                          title={friends.slice(4).map((f) => f.name).join(', ')}
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 11,
+                            background: '#0F1E36',
+                            color: '#FFFFFF',
+                            fontSize: 9,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: '2px solid #FFFFFF',
+                            marginLeft: -6,
+                            boxShadow: '0 1px 3px rgba(15, 30, 54, 0.1)',
+                          }}
+                        >
+                          +{friends.length - 4}
                         </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFriend(friend.email)}
-                        title="Remove friend"
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer',
-                          padding: 4,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: 6,
-                          marginLeft: 6,
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = '#EF4444';
-                          e.currentTarget.style.background = '#FEE2E2';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = 'var(--text-muted)';
-                          e.currentTarget.style.background = 'transparent';
-                        }}
-                      >
-                        <X size={14} />
-                      </button>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    <span>
+                      {friends.length === 1 && `Shared with ${friends[0].name}`}
+                      {friends.length === 2 && `Shared with ${friends[0].name} & ${friends[1].name}`}
+                      {friends.length === 3 && `Shared with ${friends[0].name}, ${friends[1].name} & ${friends[2].name}`}
+                      {friends.length > 3 &&
+                        `Shared with ${friends[0].name}, ${friends[1].name} +${friends.length - 2} more`}
+                    </span>
+                  </>
+                ) : (
+                  <span>🔒 Private trip (only you can view)</span>
+                )}
+              </div>
             </div>
 
             <div className="form-group">

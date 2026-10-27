@@ -148,25 +148,25 @@ export default function TripCard({ trip, onClick, onEdit }) {
             {isCompleted ? (
               <div
                 style={{
-                  background: 'rgba(16, 185, 129, 0.22)',
-                  border: '1px solid rgba(52, 211, 153, 0.45)',
-                  padding: '4px 11px',
+                  background: 'linear-gradient(135deg, #065F46 0%, #047857 100%)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.55)',
+                  padding: '5px 12px',
                   borderRadius: 20,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  backdropFilter: 'blur(6px)',
-                  WebkitBackdropFilter: 'blur(6px)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(6, 95, 70, 0.4)',
                 }}
               >
-                <CheckCircle2 size={13} color="#34D399" strokeWidth={2.4} />
+                <CheckCircle2 size={13.5} color="#A7F3D0" strokeWidth={2.8} />
                 <span
                   style={{
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: 800,
-                    letterSpacing: '0.6px',
-                    color: '#A7F3D0',
+                    letterSpacing: '0.7px',
+                    color: '#FFFFFF',
                     textTransform: 'uppercase',
+                    textShadow: '0 1px 2px rgba(0, 0, 0, 0.4)',
                   }}
                 >
                   COMPLETED
@@ -175,23 +175,24 @@ export default function TripCard({ trip, onClick, onEdit }) {
             ) : countdown ? (
               <div
                 style={{
-                  background: 'rgba(15, 30, 54, 0.45)',
-                  border: '1px solid rgba(255, 255, 255, 0.35)',
-                  padding: '4px 11px',
+                  background: 'rgba(15, 30, 54, 0.75)',
+                  border: '1px solid rgba(255, 255, 255, 0.45)',
+                  padding: '5px 12px',
                   borderRadius: 20,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  backdropFilter: 'blur(6px)',
-                  WebkitBackdropFilter: 'blur(6px)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)',
                 }}
               >
-                <Plane size={13} color="#FFFFFF" strokeWidth={2.4} />
+                <Plane size={13.5} color="#2DD4BF" strokeWidth={2.5} />
                 <span
                   style={{
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: 800,
-                    letterSpacing: '0.6px',
+                    letterSpacing: '0.7px',
                     color: '#FFFFFF',
                     textTransform: 'uppercase',
                     textShadow: '0 1px 3px rgba(0, 0, 0, 0.8)',
@@ -226,53 +227,41 @@ export default function TripCard({ trip, onClick, onEdit }) {
                 </span>
               )}
 
-              {trip.country && (
-                <span
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.15)',
-                    border: '1px solid rgba(255, 255, 255, 0.45)',
-                    color: '#FFFFFF',
-                    padding: '4px 10px',
-                    borderRadius: 20,
-                    fontSize: 10.5,
-                    fontWeight: 700,
-                    letterSpacing: '0.4px',
-                    textShadow: '0 1px 4px rgba(0, 0, 0, 0.7)',
-                    backdropFilter: 'blur(4px)',
-                    WebkitBackdropFilter: 'blur(4px)',
-                  }}
-                >
-                  {trip.country}
-                </span>
-              )}
-
               {/* 3-dots Edit Button in Right Top Corner */}
               <button
                 type="button"
                 aria-label="Edit Trip"
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   onEdit && onEdit(trip);
                 }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onEdit && onEdit(trip);
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
                 style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 14,
-                  background: 'rgba(15, 30, 54, 0.45)',
-                  border: '1px solid rgba(255, 255, 255, 0.45)',
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  background: 'rgba(15, 30, 54, 0.55)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.65)',
                   color: '#FFFFFF',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
                   padding: 0,
-                  backdropFilter: 'blur(6px)',
-                  WebkitBackdropFilter: 'blur(6px)',
-                  transition: 'background 0.15s ease, transform 0.15s ease',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+                  zIndex: 5,
                 }}
-                title="Edit trip & manage friends"
+                title="Edit Trip & Manage Friends"
               >
-                <MoreVertical size={15} color="#FFFFFF" />
+                <MoreVertical size={18} color="#FFFFFF" strokeWidth={2.4} />
               </button>
             </div>
           </div>
@@ -293,19 +282,47 @@ export default function TripCard({ trip, onClick, onEdit }) {
               {trip.title}
             </h3>
 
-            {/* Destination info row */}
+            {/* Destination info row with Country */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
+                gap: 6,
                 color: '#FFFFFF',
                 fontSize: 13,
                 fontWeight: 600,
+                flexWrap: 'wrap',
               }}
             >
-              <MapPin size={14} color="#FFFFFF" />
-              <span style={{ color: '#FFFFFF', textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>{trip.destination}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <MapPin size={14} color="#FFFFFF" style={{ flexShrink: 0 }} />
+                <span style={{ color: '#FFFFFF', textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>
+                  {trip.destination}
+                </span>
+              </div>
+
+              {trip.country && !trip.destination?.toLowerCase().includes(trip.country.toLowerCase()) && (
+                <>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: 11 }}>•</span>
+                  <span
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.2)',
+                      border: '1px solid rgba(255, 255, 255, 0.4)',
+                      color: '#FFFFFF',
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: '0.3px',
+                      textShadow: '0 1px 3px rgba(0, 0, 0, 0.7)',
+                      backdropFilter: 'blur(4px)',
+                      WebkitBackdropFilter: 'blur(4px)',
+                    }}
+                  >
+                    {trip.country}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>

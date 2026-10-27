@@ -479,7 +479,7 @@ button {
   font-family: var(--font-heading);
   font-size: 26px;
   font-weight: 800;
-  color: var(--text-main);
+  color: #334155;
   letter-spacing: -0.5px;
   line-height: 1;
 }

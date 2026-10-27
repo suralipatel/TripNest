@@ -31,7 +31,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: 'INR',
     },
-
+    friends: [
+      {
+        name: { type: String, trim: true },
+        email: { type: String, lowercase: true, trim: true },
+      },
+    ],
   },
   { timestamps: true }
 );

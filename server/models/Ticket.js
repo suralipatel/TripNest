@@ -82,6 +82,19 @@ const ticketSchema = new mongoose.Schema(
       type: String,
       default: 'Standard', // Economy, Business, First, Deluxe
     },
+    // Connecting / Layover Flight Details
+    isConnectingFlight: {
+      type: Boolean,
+      default: false,
+    },
+    layoverInfo: {
+      type: String,
+      default: '',
+    },
+    legs: {
+      type: Array,
+      default: [],
+    },
     // Codes
     qrCodeData: {
       type: String,

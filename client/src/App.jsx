@@ -17,7 +17,7 @@ import { Smartphone, CheckCircle2, AlertCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function App() {
-  const { user, token, loading: authLoading } = useAuth();
+  const { user, token, demoLogin, loading: authLoading } = useAuth();
 
   const [activeTab, setActiveTab] = useState('trips'); // 'trips' | 'tickets' | 'itinerary' | 'profile'
   const [trips, setTrips] = useState([]);
@@ -105,6 +105,16 @@ export default function App() {
     } catch (err) {
       alert((tripId ? 'Error updating trip: ' : 'Error creating trip: ') + err.message);
     }
+  };
+
+  const handleOpenAddTrip = async () => {
+    if (!user) {
+      try {
+        await demoLogin();
+      } catch {}
+    }
+    setEditingTrip(null);
+    setShowAddTripModal(true);
   };
 
   const handleEditTrip = (trip) => {
@@ -337,13 +347,7 @@ export default function App() {
               trips={trips}
               tickets={tickets}
               onSelectTrip={(trip) => setSelectedTrip(trip)}
-              onOpenAddTrip={() => {
-                if (!user) setShowAuthModal(true);
-                else {
-                  setEditingTrip(null);
-                  setShowAddTripModal(true);
-                }
-              }}
+              onOpenAddTrip={handleOpenAddTrip}
               onEditTrip={handleEditTrip}
               onOpenAuth={() => setShowAuthModal(true)}
               user={user}
@@ -387,17 +391,7 @@ export default function App() {
           activeTab={activeTab}
           onSelectTab={(tab) => setActiveTab(tab)}
           ticketCount={tickets.length}
-          onQuickAdd={() => {
-            if (activeTab === 'trips') {
-              if (!user) setShowAuthModal(true);
-              else {
-                setEditingTrip(null);
-                setShowAddTripModal(true);
-              }
-            } else {
-              setShowQuickAddMenu(true);
-            }
-          }}
+          onQuickAdd={handleOpenAddTrip}
         />
 
         {/* ================= MODALS ================= */}
@@ -413,6 +407,7 @@ export default function App() {
         {/* 2. Add New Trip / Edit Trip Modal */}
         {showAddTripModal && (
           <AddTripModal
+            key={editingTrip?._id || editingTrip?.id || 'new-trip'}
             tripToEdit={editingTrip}
             onClose={() => {
               setShowAddTripModal(false);
