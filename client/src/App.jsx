@@ -13,7 +13,8 @@ import AddTicketModal from './components/AddTicketModal';
 import QuickAddMenu from './components/QuickAddMenu';
 import QRModal from './components/QRModal';
 import AuthModal from './components/AuthModal';
-import { Smartphone, CheckCircle2, AlertCircle } from 'lucide-react';
+import WelcomeScreen from './screens/WelcomeScreen';
+import { Smartphone, CheckCircle2, AlertCircle, Compass } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function App() {
@@ -308,6 +309,49 @@ export default function App() {
     setInitialTicketType(defaultType);
     setShowAddTicketModal(true);
   };
+
+  // If verifying token on initial load, show sleek loader
+  if (authLoading && !user) {
+    return (
+      <div className="app-viewport-wrapper">
+        <div className="mobile-app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#FAF8F5' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 16,
+                background: 'linear-gradient(135deg, var(--teal-primary) 0%, var(--sage-accent) 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#FFFFFF',
+                margin: '0 auto 16px',
+                boxShadow: '0 8px 24px var(--teal-glow)',
+              }}
+            >
+              <Compass size={30} strokeWidth={2.3} />
+            </div>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 20, fontWeight: 800, margin: '0 0 6px', color: 'var(--text-main)' }}>
+              TripNest
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>Opening your travel nest...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is not logged in, render Welcome Screen with onboarding
+  if (!user) {
+    return (
+      <div className="app-viewport-wrapper">
+        <div className="mobile-app-container" style={{ background: '#FAF8F5', minHeight: '100vh' }}>
+          <WelcomeScreen onAuthenticated={loadAppData} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-viewport-wrapper">
