@@ -1,21 +1,21 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   FileText,
   Image as ImageIcon,
-  ExternalLink,
-  Download,
-  UploadCloud,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
-import { api } from '../api';
 import { ensureTicketFile, dataUrlToBlobUrl } from '../utils/ticketDocumentGenerator';
 
-export default function QRModal({ ticket, onClose, onTicketUpdated }) {
+export default function QRModal({ ticket, onClose }) {
   if (!ticket) return null;
 
-  const [currentTicket, setCurrentTicket] = useState(ticket);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef(null);
+  const [currentTicket] = useState(ticket);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [isMaximized, setIsMaximized] = useState(false);
 
   // Ensure there is always a valid document (user uploaded file or authentic ticket document)
   const file = useMemo(() => ensureTicketFile(currentTicket), [currentTicket]);
@@ -41,104 +41,67 @@ export default function QRModal({ ticket, onClose, onTicketUpdated }) {
     };
   }, [blobUrl]);
 
-  const handleFileUpload = async (uploadedFile) => {
-    if (!uploadedFile) return;
-    const isPdfFile = uploadedFile.type === 'application/pdf' || uploadedFile.name.toLowerCase().endsWith('.pdf');
-    const isImageFile = uploadedFile.type.startsWith('image/') || /\.(png|jpe?g|webp|svg)$/i.test(uploadedFile.name);
-
-    if (!isPdfFile && !isImageFile) {
-      alert('Please upload a valid PDF document or image file (PNG, JPG, WebP, SVG).');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const newFileData = {
-        dataUrl: e.target.result,
-        name: uploadedFile.name,
-        type: isPdfFile ? 'pdf' : 'image',
-        size: Math.round(uploadedFile.size / 1024),
-      };
-
-      try {
-        setUploading(true);
-        const ticketId = currentTicket._id || currentTicket.id;
-        const res = await api.updateTicket(ticketId, { ticketFile: newFileData });
-        const updated = res.data || { ...currentTicket, ticketFile: newFileData };
-        setCurrentTicket(updated);
-        if (onTicketUpdated) onTicketUpdated(updated);
-      } catch (err) {
-        const updated = { ...currentTicket, ticketFile: newFileData };
-        setCurrentTicket(updated);
-      } finally {
-        setUploading(false);
-      }
-    };
-    reader.readAsDataURL(uploadedFile);
+  const handleZoomIn = () => {
+    setZoomLevel((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 2.5));
   };
 
-  const openInNewTab = () => {
-    const targetUrl = blobUrl || file?.dataUrl;
-    if (!targetUrl) return;
-
-    if (isPdf) {
-      window.open(targetUrl, '_blank');
-    } else {
-      const w = window.open();
-      if (w) {
-        w.document.write(
-          `<title>${file?.name || 'Uploaded Ticket'}</title><body style="margin:0; background:#0F1E36; display:flex; align-items:center; justify-content:center; min-height:100vh;"><img src="${targetUrl}" style="max-width:96%; max-height:96vh; border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,0.6);"/></body>`
-        );
-      }
-    }
+  const handleZoomOut = () => {
+    setZoomLevel((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 0.5));
   };
 
-  const downloadFile = () => {
-    const targetUrl = blobUrl || file?.dataUrl;
-    if (!targetUrl) return;
-    const a = document.createElement('a');
-    a.href = targetUrl;
-    a.download = file?.name || (isPdf ? 'ticket.pdf' : 'ticket.png');
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const handleResetZoom = () => {
+    setZoomLevel(1);
+  };
+
+  const handleToggleZoom = () => {
+    setZoomLevel((prev) => (prev > 1 ? 1 : 1.5));
   };
 
   return (
-    <div className="center-popup-backdrop" onClick={onClose} style={{ zIndex: 160 }}>
+    <div
+      className="center-popup-backdrop"
+      onClick={onClose}
+      style={{
+        zIndex: 160,
+        padding: isMaximized ? 0 : undefined,
+      }}
+    >
       <div
         className="center-popup-modal wide-viewer"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: '95%',
-          maxWidth: 820,
-          maxHeight: '94vh',
-          height: '90vh',
-          display: 'flex',
-          flexDirection: 'column',
-          borderRadius: 24,
+          width: isMaximized ? '100vw' : '96%',
+          maxWidth: isMaximized ? '100vw' : 860,
+          height: isMaximized ? '100vh' : '92vh',
+          maxHeight: isMaximized ? '100vh' : '94vh',
+          borderRadius: isMaximized ? 0 : 24,
           background: '#FFFFFF',
           overflow: 'hidden',
-          boxShadow: '0 25px 75px rgba(15, 30, 54, 0.35)',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: isMaximized ? 'none' : '0 25px 75px rgba(15, 30, 54, 0.35)',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
         {/* Modal Top Header Bar */}
         <div
           style={{
-            padding: '14px 22px',
+            padding: '12px 20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             borderBottom: '1px solid #E2E8F0',
             background: '#FFFFFF',
             flexShrink: 0,
+            gap: 12,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+          {/* Document Title & Meta */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden', flex: 1 }}>
             <div
               style={{
-                width: 38,
-                height: 38,
+                width: 36,
+                height: 36,
                 borderRadius: 10,
                 background: isPdf ? '#FEF2F2' : '#F0FDFA',
                 color: isPdf ? '#EF4444' : '#0D9488',
@@ -148,10 +111,19 @@ export default function QRModal({ ticket, onClose, onTicketUpdated }) {
                 flexShrink: 0,
               }}
             >
-              {isPdf ? <FileText size={20} strokeWidth={2.4} /> : <ImageIcon size={20} strokeWidth={2.4} />}
+              {isPdf ? <FileText size={18} strokeWidth={2.4} /> : <ImageIcon size={18} strokeWidth={2.4} />}
             </div>
             <div style={{ textAlign: 'left', overflow: 'hidden' }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#0F1E36', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div
+                style={{
+                  fontSize: 14.5,
+                  fontWeight: 800,
+                  color: '#0F1E36',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
                 {file?.name || currentTicket.title || 'Ticket Document'}
               </div>
               <div style={{ fontSize: 11.5, color: '#64748B', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -161,92 +133,113 @@ export default function QRModal({ ticket, onClose, onTicketUpdated }) {
             </div>
           </div>
 
-          {/* Action buttons on header right */}
+          {/* Action controls on header right: Zoom In/Out, Maximize Modal, Close */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            {/* Replace / Upload file button */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".pdf,image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
-              style={{ display: 'none' }}
-              onChange={(e) => handleFileUpload(e.target.files?.[0])}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
+            {/* Zoom In & Out Controls */}
+            <div
               style={{
-                display: 'inline-flex',
+                display: 'flex',
                 alignItems: 'center',
-                gap: 5,
-                padding: '7px 12px',
-                borderRadius: 9,
-                background: '#FFFFFF',
-                border: '1px solid #CBD5E1',
-                fontSize: 12,
-                fontWeight: 600,
-                color: '#475569',
-                cursor: 'pointer',
+                gap: 2,
+                background: '#F1F5F9',
+                padding: '3px 6px',
+                borderRadius: 10,
+                border: '1px solid #E2E8F0',
               }}
-              title="Replace or upload a new ticket document"
             >
-              <UploadCloud size={14} color="#0D9488" />
-              <span>{uploading ? 'Uploading...' : 'Replace'}</span>
-            </button>
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                disabled={zoomLevel <= 0.5}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 7,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: zoomLevel <= 0.5 ? '#94A3B8' : '#0F1E36',
+                  cursor: zoomLevel <= 0.5 ? 'default' : 'pointer',
+                  background: 'none',
+                  border: 'none',
+                }}
+                title="Zoom Out (-)"
+              >
+                <ZoomOut size={15} />
+              </button>
 
+              <button
+                type="button"
+                onClick={handleResetZoom}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#0F1E36',
+                  padding: '2px 6px',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  minWidth: 44,
+                  textAlign: 'center',
+                }}
+                title="Click to Reset Zoom (100%)"
+              >
+                {Math.round(zoomLevel * 100)}%
+              </button>
+
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                disabled={zoomLevel >= 2.5}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 7,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: zoomLevel >= 2.5 ? '#94A3B8' : '#0F1E36',
+                  cursor: zoomLevel >= 2.5 ? 'default' : 'pointer',
+                  background: 'none',
+                  border: 'none',
+                }}
+                title="Zoom In (+)"
+              >
+                <ZoomIn size={15} />
+              </button>
+            </div>
+
+            {/* Whole Modal Zoom / Maximize Fullscreen Toggle */}
             <button
               type="button"
-              onClick={openInNewTab}
+              onClick={() => setIsMaximized((prev) => !prev)}
               style={{
-                display: 'inline-flex',
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: isMaximized ? '#E2E8F0' : '#F1F5F9',
+                border: '1px solid #E2E8F0',
+                display: 'flex',
                 alignItems: 'center',
-                gap: 5,
-                padding: '7px 12px',
-                borderRadius: 9,
-                background: '#F8FAFC',
-                border: '1px solid #CBD5E1',
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#1E293B',
+                justifyContent: 'center',
+                color: '#0F1E36',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
               }}
-              title="Open full size in new browser tab"
+              title={isMaximized ? 'Zoom out modal to normal size' : 'Zoom in whole modal to fullscreen'}
             >
-              <ExternalLink size={13} />
-              <span>Open in New Tab</span>
+              {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
 
-            <button
-              type="button"
-              onClick={downloadFile}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '7px 12px',
-                borderRadius: 9,
-                background: 'linear-gradient(135deg, #0D9488 0%, #0F766E 100%)',
-                border: 'none',
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#FFFFFF',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(13, 148, 136, 0.25)',
-              }}
-              title="Download file"
-            >
-              <Download size={13} />
-              <span>Download</span>
-            </button>
-
+            {/* Close Button */}
             <button
               type="button"
               onClick={onClose}
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
+                width: 34,
+                height: 34,
+                borderRadius: 17,
                 background: '#F1F5F9',
                 border: 'none',
                 display: 'flex',
@@ -254,7 +247,7 @@ export default function QRModal({ ticket, onClose, onTicketUpdated }) {
                 justifyContent: 'center',
                 color: '#64748B',
                 cursor: 'pointer',
-                marginLeft: 4,
+                transition: 'all 0.15s ease',
               }}
               title="Close"
             >
@@ -266,21 +259,36 @@ export default function QRModal({ ticket, onClose, onTicketUpdated }) {
         {/* Modal Main Document Viewer */}
         <div
           style={{
-            padding: '12px',
-            overflowY: 'auto',
+            padding: isMaximized ? '8px' : '12px',
+            overflow: 'auto',
             flex: 1,
             background: '#F1F5F9',
             display: 'flex',
             flexDirection: 'column',
+            alignItems: 'center',
           }}
         >
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div
+            onDoubleClick={handleToggleZoom}
+            style={{
+              flex: 1,
+              width: '100%',
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              transform: `scale(${zoomLevel})`,
+              transformOrigin: 'top center',
+              transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
             {isPdf ? (
               /* PDF Viewer Container */
               <div
                 style={{
-                  flex: 1,
-                  minHeight: 480,
+                  width: '100%',
+                  height: '100%',
+                  minHeight: isMaximized ? '86vh' : 540,
                   borderRadius: 14,
                   overflow: 'hidden',
                   background: '#FFFFFF',
@@ -296,7 +304,7 @@ export default function QRModal({ ticket, onClose, onTicketUpdated }) {
                   style={{
                     width: '100%',
                     height: '100%',
-                    minHeight: 520,
+                    minHeight: isMaximized ? '86vh' : 540,
                     border: 'none',
                     flex: 1,
                   }}
@@ -307,7 +315,7 @@ export default function QRModal({ ticket, onClose, onTicketUpdated }) {
                     style={{
                       width: '100%',
                       height: '100%',
-                      minHeight: 520,
+                      minHeight: isMaximized ? '86vh' : 540,
                       border: 'none',
                     }}
                   />
@@ -318,7 +326,8 @@ export default function QRModal({ ticket, onClose, onTicketUpdated }) {
               <div
                 style={{
                   flex: 1,
-                  minHeight: 480,
+                  width: '100%',
+                  minHeight: isMaximized ? '86vh' : 480,
                   borderRadius: 14,
                   overflow: 'hidden',
                   background: '#0F1E36',
@@ -332,16 +341,16 @@ export default function QRModal({ ticket, onClose, onTicketUpdated }) {
                 <img
                   src={blobUrl || file?.dataUrl}
                   alt={file?.name || 'Uploaded Ticket'}
-                  onClick={openInNewTab}
+                  onClick={handleToggleZoom}
                   style={{
                     maxWidth: '100%',
-                    maxHeight: '74vh',
+                    maxHeight: isMaximized ? '86vh' : '74vh',
                     objectFit: 'contain',
                     borderRadius: 10,
-                    cursor: 'zoom-in',
+                    cursor: zoomLevel > 1 ? 'zoom-out' : 'zoom-in',
                     boxShadow: '0 10px 40px rgba(0, 0, 0, 0.4)',
                   }}
-                  title="Click to open in full size"
+                  title="Click or double-click to zoom in / zoom out"
                 />
               </div>
             )}
