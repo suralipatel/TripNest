@@ -109,7 +109,7 @@ button {
 /* The mobile phone frame */
 .mobile-app-container {
   width: 100%;
-  max-width: 440px;
+  max-width: 100%;
   min-height: 100vh;
   background-color: var(--bg-app);
   display: flex;
@@ -121,6 +121,7 @@ button {
 
 @media (min-width: 641px) {
   .mobile-app-container {
+    max-width: 480px;
     min-height: 860px;
     height: 92vh;
     border-radius: 42px;
@@ -969,6 +970,24 @@ button {
   max-height: 92vh;
 }
 
+/* Mobile full-width bottom sheet for modals */
+@media (max-width: 640px) {
+  .center-popup-backdrop {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+  .center-popup-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 94vh !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-top-left-radius: 28px !important;
+    border-top-right-radius: 28px !important;
+    animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+}
+
 @keyframes popIn {
   from {
     opacity: 0;
@@ -1058,14 +1077,40 @@ button {
 .form-input,
 .form-select,
 .form-textarea {
-  width: 100%;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
   padding: 11px 14px;
   border: 1.5px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: #FFFFFF;
   color: var(--text-main);
   font-size: 14px;
+  font-family: inherit;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Explicit normalization for date/time/number inputs (prevents iOS Safari overflow) */
+input[type="date"].form-input,
+input[type="time"].form-input,
+input[type="datetime-local"].form-input,
+input[type="number"].form-input {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  display: block !important;
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #FFFFFF;
+}
+
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.25em;
+  padding: 0;
 }
 
 .form-input:focus,
@@ -1078,8 +1123,51 @@ button {
 
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+/* Responsive Ticket Form Row (prevents collapsing/overlapping fields) */
+.ticket-field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.ticket-field-row.equal {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.ticket-field-row > div {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 520px) {
+  .ticket-field-row,
+  .ticket-field-row.equal {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+}
+
+.ticket-modal-body {
+  padding: 16px 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+@media (max-width: 480px) {
+  .ticket-modal-body {
+    padding: 14px 16px 20px !important;
+  }
 }
 
 .btn-primary {

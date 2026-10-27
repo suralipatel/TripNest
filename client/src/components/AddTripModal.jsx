@@ -495,7 +495,7 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
               />
             </div>
 
-            <div className="form-group">
+            <div className="form-group" style={{ minWidth: 0, width: '100%' }}>
               <label className="form-label">Departure Date *</label>
               <input
                 type="date"
@@ -503,9 +503,10 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="form-input"
+                style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}
               />
             </div>
-            <div className="form-group">
+            <div className="form-group" style={{ minWidth: 0, width: '100%' }}>
               <label className="form-label">Return Date *</label>
               <input
                 type="date"
@@ -513,6 +514,7 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className="form-input"
+                style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}
               />
             </div>
 

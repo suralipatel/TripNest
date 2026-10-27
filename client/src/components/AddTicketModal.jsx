@@ -353,21 +353,10 @@ export default function AddTicketModal({
   };
 
   return (
-    <div className="center-popup-backdrop" onClick={onClose} style={{ zIndex: 160 }}>
+    <div className="center-popup-backdrop ticket-modal-backdrop" onClick={onClose} style={{ zIndex: 160 }}>
       <div
-        className="center-popup-modal"
+        className="center-popup-modal ticket-modal-container"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '94%',
-          maxWidth: 500,
-          borderRadius: 24,
-          background: '#FFFFFF',
-          boxShadow: '0 25px 70px rgba(15, 30, 54, 0.25)',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          maxHeight: '92vh',
-        }}
       >
         {/* Header */}
         <div
@@ -415,7 +404,7 @@ export default function AddTicketModal({
         </div>
 
         {/* Scrollable Form Body */}
-        <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+        <div className="ticket-modal-body">
           {/* Active Trip Context Chip */}
           {activeTrip && (
             <div
@@ -868,7 +857,7 @@ export default function AddTicketModal({
             )}
 
             {/* Route: From & To */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="ticket-field-row equal">
               <div>
                 <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
                   From (Origin)
@@ -879,7 +868,7 @@ export default function AddTicketModal({
                   value={formData.originName}
                   onChange={(e) => handleInputChange('originName', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
               <div>
@@ -892,13 +881,13 @@ export default function AddTicketModal({
                   value={formData.destinationName}
                   onChange={(e) => handleInputChange('destinationName', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
             </div>
 
             {/* Departure Date & Time */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+            <div className="ticket-field-row">
               <div>
                 <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
                   Departure Date
@@ -908,7 +897,7 @@ export default function AddTicketModal({
                   value={formData.departureDate}
                   onChange={(e) => handleInputChange('departureDate', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 10px' }}
+                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
               <div>
@@ -920,13 +909,13 @@ export default function AddTicketModal({
                   value={formData.departureTime}
                   onChange={(e) => handleInputChange('departureTime', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 10px' }}
+                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
             </div>
 
             {/* Arrival Date & Time */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+            <div className="ticket-field-row">
               <div>
                 <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
                   Arrival Date
@@ -936,7 +925,7 @@ export default function AddTicketModal({
                   value={formData.arrivalDate}
                   onChange={(e) => handleInputChange('arrivalDate', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 10px' }}
+                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
               <div>
@@ -948,14 +937,14 @@ export default function AddTicketModal({
                   value={formData.arrivalTime}
                   onChange={(e) => handleInputChange('arrivalTime', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 10px' }}
+                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
             </div>
 
             {/* Seat / Berth & Class (Ref/PNR is omitted for flights) */}
             {ticketType === 'flight' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="ticket-field-row equal">
                 <div>
                   <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
                     Class of Travel
@@ -966,7 +955,7 @@ export default function AddTicketModal({
                     value={formData.classType}
                     onChange={(e) => handleInputChange('classType', e.target.value)}
                     className="form-input"
-                    style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                    style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                   />
                 </div>
                 <div>
@@ -979,12 +968,12 @@ export default function AddTicketModal({
                     value={formData.seat}
                     onChange={(e) => handleInputChange('seat', e.target.value)}
                     className="form-input"
-                    style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                    style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+              <div className="ticket-field-row">
                 <div>
                   <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
                     PNR / Booking Reference
@@ -995,7 +984,7 @@ export default function AddTicketModal({
                     value={formData.referenceNumber}
                     onChange={(e) => handleInputChange('referenceNumber', e.target.value.toUpperCase())}
                     className="form-input"
-                    style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px', fontFamily: 'monospace' }}
+                    style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', fontFamily: 'monospace', minWidth: 0, boxSizing: 'border-box' }}
                   />
                 </div>
                 <div>
@@ -1008,14 +997,14 @@ export default function AddTicketModal({
                     value={formData.seat}
                     onChange={(e) => handleInputChange('seat', e.target.value)}
                     className="form-input"
-                    style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                    style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                   />
                 </div>
               </div>
             )}
 
             {/* Passenger Name & Gate */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+            <div className="ticket-field-row">
               <div>
                 <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 4 }}>
                   Passenger / Guest Name
@@ -1026,7 +1015,7 @@ export default function AddTicketModal({
                   value={formData.passengerName}
                   onChange={(e) => handleInputChange('passengerName', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
               <div>
@@ -1039,7 +1028,7 @@ export default function AddTicketModal({
                   value={formData.gate}
                   onChange={(e) => handleInputChange('gate', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 40, fontSize: 13, borderRadius: 10, padding: '0 12px' }}
+                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
                 />
               </div>
             </div>
