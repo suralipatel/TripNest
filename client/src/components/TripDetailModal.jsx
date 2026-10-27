@@ -943,58 +943,6 @@ export default function TripDetailModal({
         {/* ===================== TAB 3: PACKING ===================== */}
         {activeMainTab === 'packing' && (
           <div>
-            {/* Packing Progress Card */}
-            <div
-              style={{
-                background: '#FFFFFF',
-                padding: 16,
-                borderRadius: 16,
-                border: '1px solid var(--border-subtle)',
-                marginBottom: 14,
-                boxShadow: '0 2px 6px rgba(15, 30, 54, 0.03)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Luggage size={16} color="#0284C7" />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)' }}>
-                    My Luggage Checklist
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: '#0284C7',
-                      background: '#F0F9FF',
-                      border: '1px solid #BAE6FD',
-                      padding: '2px 7px',
-                      borderRadius: 10,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 3,
-                    }}
-                    title="This packing checklist is personal to you and cannot be viewed or edited by friends on this trip."
-                  >
-                    <Lock size={10} />
-                    <span>Personal</span>
-                  </span>
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#0284C7' }}>
-                  {packedCount} of {packingList.length} Packed ({packingPercent}%)
-                </span>
-              </div>
-              <div style={{ width: '100%', height: 7, background: '#E2E8F0', borderRadius: 4, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    width: `${packingPercent}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #0284C7, #38BDF8)',
-                    transition: 'width 0.3s ease',
-                  }}
-                />
-              </div>
-            </div>
-
             {/* Add item form (simple, clean input + only + icon button) */}
             <form onSubmit={handleAddPacking} style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <input
