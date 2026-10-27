@@ -5,8 +5,6 @@ import {
   Image as ImageIcon,
   ZoomIn,
   ZoomOut,
-  Maximize2,
-  Minimize2,
 } from 'lucide-react';
 import { ensureTicketFile, dataUrlToBlobUrl } from '../utils/ticketDocumentGenerator';
 
@@ -41,20 +39,9 @@ export default function QRModal({ ticket, onClose }) {
     };
   }, [blobUrl]);
 
-  const handleZoomIn = () => {
-    setZoomLevel((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 2.5));
-  };
-
-  const handleZoomOut = () => {
-    setZoomLevel((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 0.5));
-  };
-
-  const handleResetZoom = () => {
-    setZoomLevel(1);
-  };
-
-  const handleToggleZoom = () => {
-    setZoomLevel((prev) => (prev > 1 ? 1 : 1.5));
+  const handleToggleZoom = (e) => {
+    if (e && e.target && e.target.closest('button')) return;
+    setZoomLevel((prev) => (prev > 1 ? 1 : 1.85));
   };
 
   return (
@@ -133,113 +120,16 @@ export default function QRModal({ ticket, onClose }) {
             </div>
           </div>
 
-          {/* Action controls on header right: Zoom In/Out, Maximize Modal, Close */}
+          {/* Action controls on header right: Clean Close Button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            {/* Zoom In & Out Controls */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                background: '#F1F5F9',
-                padding: '3px 6px',
-                borderRadius: 10,
-                border: '1px solid #E2E8F0',
-              }}
-            >
-              <button
-                type="button"
-                onClick={handleZoomOut}
-                disabled={zoomLevel <= 0.5}
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 7,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: zoomLevel <= 0.5 ? '#94A3B8' : '#0F1E36',
-                  cursor: zoomLevel <= 0.5 ? 'default' : 'pointer',
-                  background: 'none',
-                  border: 'none',
-                }}
-                title="Zoom Out (-)"
-              >
-                <ZoomOut size={15} />
-              </button>
-
-              <button
-                type="button"
-                onClick={handleResetZoom}
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: '#0F1E36',
-                  padding: '2px 6px',
-                  borderRadius: 6,
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  minWidth: 44,
-                  textAlign: 'center',
-                }}
-                title="Click to Reset Zoom (100%)"
-              >
-                {Math.round(zoomLevel * 100)}%
-              </button>
-
-              <button
-                type="button"
-                onClick={handleZoomIn}
-                disabled={zoomLevel >= 2.5}
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 7,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: zoomLevel >= 2.5 ? '#94A3B8' : '#0F1E36',
-                  cursor: zoomLevel >= 2.5 ? 'default' : 'pointer',
-                  background: 'none',
-                  border: 'none',
-                }}
-                title="Zoom In (+)"
-              >
-                <ZoomIn size={15} />
-              </button>
-            </div>
-
-            {/* Whole Modal Zoom / Maximize Fullscreen Toggle */}
-            <button
-              type="button"
-              onClick={() => setIsMaximized((prev) => !prev)}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                background: isMaximized ? '#E2E8F0' : '#F1F5F9',
-                border: '1px solid #E2E8F0',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#0F1E36',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              title={isMaximized ? 'Zoom out modal to normal size' : 'Zoom in whole modal to fullscreen'}
-            >
-              {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
-
             {/* Close Button */}
             <button
               type="button"
               onClick={onClose}
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 17,
+                width: 36,
+                height: 36,
+                borderRadius: 18,
                 background: '#F1F5F9',
                 border: 'none',
                 display: 'flex',
@@ -250,36 +140,40 @@ export default function QRModal({ ticket, onClose }) {
                 transition: 'all 0.15s ease',
               }}
               title="Close"
+              aria-label="Close"
             >
-              <X size={18} />
+              <X size={20} />
             </button>
           </div>
         </div>
 
         {/* Modal Main Document Viewer */}
         <div
+          onClick={handleToggleZoom}
           style={{
-            padding: isMaximized ? '8px' : '12px',
+            position: 'relative',
             overflow: 'auto',
             flex: 1,
-            background: '#F1F5F9',
+            background: '#0F1E36',
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
+            alignItems: zoomLevel > 1 ? 'flex-start' : 'center',
+            justifyContent: zoomLevel > 1 ? 'flex-start' : 'center',
+            padding: zoomLevel > 1 ? '24px 20px' : '16px',
+            cursor: zoomLevel > 1 ? 'zoom-out' : 'zoom-in',
+            WebkitOverflowScrolling: 'touch',
+            userSelect: 'none',
           }}
         >
           <div
-            onDoubleClick={handleToggleZoom}
             style={{
-              flex: 1,
-              width: '100%',
-              minHeight: 0,
+              margin: 'auto',
+              width: zoomLevel > 1 ? '185%' : '100%',
+              maxWidth: zoomLevel > 1 ? 'none' : '100%',
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              transform: `scale(${zoomLevel})`,
-              transformOrigin: 'top center',
-              transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              justifyContent: 'center',
+              transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+              cursor: zoomLevel > 1 ? 'zoom-out' : 'zoom-in',
             }}
           >
             {isPdf ? (
@@ -287,15 +181,12 @@ export default function QRModal({ ticket, onClose }) {
               <div
                 style={{
                   width: '100%',
-                  height: '100%',
-                  minHeight: isMaximized ? '86vh' : 540,
+                  minHeight: zoomLevel > 1 ? '120vh' : 540,
                   borderRadius: 14,
                   overflow: 'hidden',
                   background: '#FFFFFF',
                   border: '1px solid #CBD5E1',
-                  boxShadow: '0 4px 16px rgba(15, 30, 54, 0.06)',
-                  display: 'flex',
-                  flexDirection: 'column',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
                 }}
               >
                 <object
@@ -304,9 +195,8 @@ export default function QRModal({ ticket, onClose }) {
                   style={{
                     width: '100%',
                     height: '100%',
-                    minHeight: isMaximized ? '86vh' : 540,
+                    minHeight: zoomLevel > 1 ? '120vh' : 540,
                     border: 'none',
-                    flex: 1,
                   }}
                 >
                   <iframe
@@ -315,7 +205,7 @@ export default function QRModal({ ticket, onClose }) {
                     style={{
                       width: '100%',
                       height: '100%',
-                      minHeight: isMaximized ? '86vh' : 540,
+                      minHeight: zoomLevel > 1 ? '120vh' : 540,
                       border: 'none',
                     }}
                   />
@@ -323,36 +213,59 @@ export default function QRModal({ ticket, onClose }) {
               </div>
             ) : (
               /* Image / SVG Viewer Container */
-              <div
+              <img
+                src={blobUrl || file?.dataUrl}
+                alt={file?.name || 'Uploaded Ticket'}
                 style={{
-                  flex: 1,
-                  width: '100%',
-                  minHeight: isMaximized ? '86vh' : 480,
-                  borderRadius: 14,
-                  overflow: 'hidden',
-                  background: '#0F1E36',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 16,
-                  boxShadow: '0 4px 20px rgba(15, 30, 54, 0.15)',
+                  width: zoomLevel > 1 ? '100%' : 'auto',
+                  maxWidth: zoomLevel > 1 ? 'none' : '100%',
+                  maxHeight: zoomLevel > 1 ? 'none' : '76vh',
+                  objectFit: 'contain',
+                  borderRadius: 12,
+                  boxShadow: '0 12px 40px rgba(0, 0, 0, 0.6)',
+                  cursor: zoomLevel > 1 ? 'zoom-out' : 'zoom-in',
+                  transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                  display: 'block',
                 }}
-              >
-                <img
-                  src={blobUrl || file?.dataUrl}
-                  alt={file?.name || 'Uploaded Ticket'}
-                  onClick={handleToggleZoom}
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: isMaximized ? '86vh' : '74vh',
-                    objectFit: 'contain',
-                    borderRadius: 10,
-                    cursor: zoomLevel > 1 ? 'zoom-out' : 'zoom-in',
-                    boxShadow: '0 10px 40px rgba(0, 0, 0, 0.4)',
-                  }}
-                  title="Click or double-click to zoom in / zoom out"
-                />
-              </div>
+              />
+            )}
+          </div>
+
+          {/* Floating Click-to-Zoom Pill */}
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 30,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(15, 30, 54, 0.92)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: '#FFFFFF',
+              padding: '7px 18px',
+              borderRadius: 9999,
+              fontSize: 12,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              boxShadow: '0 6px 20px rgba(0, 0, 0, 0.45)',
+              pointerEvents: 'none',
+              zIndex: 30,
+              letterSpacing: '0.2px',
+            }}
+          >
+            {zoomLevel > 1 ? (
+              <>
+                <ZoomOut size={14} color="#38BDF8" />
+                <span>Tap screen to zoom out</span>
+              </>
+            ) : (
+              <>
+                <ZoomIn size={14} color="#38BDF8" />
+                <span>Tap screen to zoom in</span>
+              </>
             )}
           </div>
         </div>
