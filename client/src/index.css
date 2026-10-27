@@ -162,7 +162,7 @@ button {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: calc(var(--nav-height) + 32px);
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 20px) + 24px);
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
 }
@@ -250,11 +250,13 @@ button {
    FIXED BOTTOM NAVIGATION BAR
    =================================================================== */
 .bottom-nav-bar {
-  position: absolute;
+  position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: var(--nav-height);
+  width: 100%;
+  min-height: 64px;
+  height: auto;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -262,10 +264,17 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 0 8px;
-  padding-bottom: env(safe-area-inset-bottom, 0);
-  z-index: 45;
+  padding: 8px 12px max(14px, env(safe-area-inset-bottom, 14px));
+  z-index: 50;
   box-shadow: 0 -4px 16px rgba(15, 30, 54, 0.04);
+  box-sizing: border-box;
+}
+
+@media (min-width: 641px) {
+  .bottom-nav-bar {
+    position: absolute;
+    padding-bottom: 12px;
+  }
 }
 
 .nav-tab-item {
@@ -1091,7 +1100,7 @@ button {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* Explicit normalization for date/time/number inputs (prevents iOS Safari overflow) */
+/* Explicit normalization for date/time/number inputs (prevents iOS Safari overflow and vertical misalignment) */
 input[type="date"].form-input,
 input[type="time"].form-input,
 input[type="datetime-local"].form-input,
@@ -1100,17 +1109,37 @@ input[type="number"].form-input {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  display: block !important;
-  -webkit-appearance: none;
-  appearance: none;
+  min-height: 44px !important;
+  height: 44px !important;
+  padding: 10px 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
   background-color: #FFFFFF;
+  line-height: normal !important;
 }
 
 input[type="date"]::-webkit-date-and-time-value,
-input[type="time"]::-webkit-date-and-time-value {
-  text-align: left;
-  min-height: 1.25em;
-  padding: 0;
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value {
+  text-align: left !important;
+  display: flex !important;
+  align-items: center !important;
+  min-height: 100% !important;
+  height: 100% !important;
+  line-height: inherit !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit,
+input[type="datetime-local"]::-webkit-datetime-edit {
+  display: inline-flex !important;
+  align-items: center !important;
+  height: 100% !important;
+  padding: 0 !important;
 }
 
 .form-input:focus,

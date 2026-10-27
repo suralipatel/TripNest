@@ -564,21 +564,22 @@ export default function AddTicketModal({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '10px 14px',
+                  padding: '10px 12px',
                   background: '#F0FDFA',
                   borderRadius: 14,
                   border: '1.5px solid #99F6E4',
+                  boxSizing: 'border-box',
+                  width: '100%',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <FileText size={20} color="#0D9488" />
-                  <div style={{ textAlign: 'left' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                  <FileText size={20} color="#0D9488" style={{ flexShrink: 0 }} />
+                  <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
                     <div
                       style={{
                         fontSize: 12.5,
                         fontWeight: 700,
                         color: 'var(--text-main)',
-                        maxWidth: 240,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
@@ -592,44 +593,33 @@ export default function AddTicketModal({
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      padding: '5px 9px',
-                      borderRadius: 8,
-                      background: '#FFFFFF',
-                      border: '1px solid #CCFBF1',
-                      color: '#0D9488',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Replace
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTicketFile(null);
-                      setExtractedFromDoc(false);
-                      setDocumentNotTicketNotice(null);
-                      setExtractionFallbackReason(null);
-                    }}
-                    style={{
-                      padding: '5px 7px',
-                      borderRadius: 8,
-                      background: '#FEE2E2',
-                      border: 'none',
-                      color: '#EF4444',
-                      cursor: 'pointer',
-                    }}
-                    title="Remove File"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTicketFile(null);
+                    setExtractedFromDoc(false);
+                    setDocumentNotTicketNotice(null);
+                    setExtractionFallbackReason(null);
+                  }}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    background: '#FEE2E2',
+                    border: 'none',
+                    color: '#DC2626',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    marginLeft: 10,
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Remove File"
+                  aria-label="Remove File"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
             )}
           </div>
@@ -868,7 +858,7 @@ export default function AddTicketModal({
                   value={formData.originName}
                   onChange={(e) => handleInputChange('originName', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                 />
               </div>
               <div>
@@ -881,7 +871,7 @@ export default function AddTicketModal({
                   value={formData.destinationName}
                   onChange={(e) => handleInputChange('destinationName', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                 />
               </div>
             </div>
@@ -897,7 +887,7 @@ export default function AddTicketModal({
                   value={formData.departureDate}
                   onChange={(e) => handleInputChange('departureDate', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                 />
               </div>
               <div>
@@ -909,7 +899,7 @@ export default function AddTicketModal({
                   value={formData.departureTime}
                   onChange={(e) => handleInputChange('departureTime', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                 />
               </div>
             </div>
@@ -925,7 +915,7 @@ export default function AddTicketModal({
                   value={formData.arrivalDate}
                   onChange={(e) => handleInputChange('arrivalDate', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                 />
               </div>
               <div>
@@ -937,7 +927,7 @@ export default function AddTicketModal({
                   value={formData.arrivalTime}
                   onChange={(e) => handleInputChange('arrivalTime', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                 />
               </div>
             </div>
@@ -955,7 +945,7 @@ export default function AddTicketModal({
                     value={formData.classType}
                     onChange={(e) => handleInputChange('classType', e.target.value)}
                     className="form-input"
-                    style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                    style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                   />
                 </div>
                 <div>
@@ -968,7 +958,7 @@ export default function AddTicketModal({
                     value={formData.seat}
                     onChange={(e) => handleInputChange('seat', e.target.value)}
                     className="form-input"
-                    style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                    style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                   />
                 </div>
               </div>
@@ -984,7 +974,7 @@ export default function AddTicketModal({
                     value={formData.referenceNumber}
                     onChange={(e) => handleInputChange('referenceNumber', e.target.value.toUpperCase())}
                     className="form-input"
-                    style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', fontFamily: 'monospace', minWidth: 0, boxSizing: 'border-box' }}
+                    style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', fontFamily: 'monospace', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                   />
                 </div>
                 <div>
@@ -997,7 +987,7 @@ export default function AddTicketModal({
                     value={formData.seat}
                     onChange={(e) => handleInputChange('seat', e.target.value)}
                     className="form-input"
-                    style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                    style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                   />
                 </div>
               </div>
@@ -1015,7 +1005,7 @@ export default function AddTicketModal({
                   value={formData.passengerName}
                   onChange={(e) => handleInputChange('passengerName', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                 />
               </div>
               <div>
@@ -1028,7 +1018,7 @@ export default function AddTicketModal({
                   value={formData.gate}
                   onChange={(e) => handleInputChange('gate', e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', height: 42, fontSize: 13, borderRadius: 10, padding: '0 12px', minWidth: 0, boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 44, minHeight: 44, fontSize: 13.5, borderRadius: 10, padding: '10px 14px', minWidth: 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}
                 />
               </div>
             </div>

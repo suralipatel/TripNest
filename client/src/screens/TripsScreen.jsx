@@ -231,44 +231,6 @@ export default function TripsScreen({
           ))
         )}
       </div>
-      {/* Floating Action Button (+ in bottom right) to Open Add Trip Modal */}
-      <button
-        type="button"
-        onClick={onOpenAddTrip}
-        title="Add New Trip"
-        aria-label="Add New Trip"
-        style={{
-          position: 'fixed',
-          right: 22,
-          bottom: 'calc(var(--nav-height) + 20px)',
-          width: 54,
-          height: 54,
-          borderRadius: 27,
-          background: 'linear-gradient(135deg, var(--teal-primary) 0%, var(--sage-accent) 100%)',
-          color: '#FFFFFF',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 8px 24px var(--teal-glow), 0 4px 10px rgba(15, 30, 54, 0.15)',
-          border: '2.5px solid #FFFFFF',
-          cursor: 'pointer',
-          zIndex: 40,
-          transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.08) translateY(-2px)';
-          e.currentTarget.style.boxShadow = '0 12px 28px rgba(13, 148, 136, 0.4)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1) translateY(0)';
-          e.currentTarget.style.boxShadow = '0 8px 24px var(--teal-glow), 0 4px 10px rgba(15, 30, 54, 0.15)';
-        }}
-        onMouseDown={(e) => {
-          e.currentTarget.style.transform = 'scale(0.94)';
-        }}
-      >
-        <Plus size={26} strokeWidth={2.6} />
-      </button>
     </div>
   );
 }
