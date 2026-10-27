@@ -47,17 +47,22 @@ router.post('/signup', async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const { isMongoConnected } = getMongoStatus();
 
-    // Check if user exists
+    // Check if user exists (case-insensitive & trimmed)
+    let existing = null;
     if (isMongoConnected) {
-      const existing = await UserModel.findOne({ email: normalizedEmail });
-      if (existing) {
-        return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
-      }
+      existing = await UserModel.findOne({
+        email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      });
     } else {
-      const existing = localStore.findOne('users', (u) => u.email === normalizedEmail);
-      if (existing) {
-        return res.status(409).json({ success: false, message: 'An account with this email already exists.' });
-      }
+      existing = localStore.findOne('users', (u) => (u.email || '').toLowerCase().trim() === normalizedEmail);
+    }
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        code: 'EMAIL_ALREADY_EXISTS',
+        message: 'An account with this email already exists. Please sign in instead.',
+      });
     }
 
     // Hash password
@@ -72,6 +77,7 @@ router.post('/signup', async (req, res) => {
         password: hashedPassword,
         homeAirport: homeAirport || '',
         currency: currency || 'INR',
+        friends: [],
       });
       user = await newUser.save();
     } else {
@@ -81,6 +87,7 @@ router.post('/signup', async (req, res) => {
         password: hashedPassword,
         homeAirport: homeAirport || '',
         currency: currency || 'INR',
+        friends: [],
       });
     }
 
@@ -90,7 +97,7 @@ router.post('/signup', async (req, res) => {
     const token = jwt.sign(
       { userId, email: user.email, name: user.name },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '30d' }
     );
 
     res.status(201).json({
@@ -103,6 +110,7 @@ router.post('/signup', async (req, res) => {
         email: user.email,
         homeAirport: user.homeAirport,
         currency: user.currency,
+        friends: user.friends || [],
       },
     });
   } catch (error) {
@@ -125,18 +133,28 @@ router.post('/login', async (req, res) => {
 
     let user;
     if (isMongoConnected) {
-      user = await UserModel.findOne({ email: normalizedEmail });
+      user = await UserModel.findOne({
+        email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      });
     } else {
-      user = localStore.findOne('users', (u) => u.email === normalizedEmail);
+      user = localStore.findOne('users', (u) => (u.email || '').toLowerCase().trim() === normalizedEmail);
     }
 
     if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+      return res.status(401).json({
+        success: false,
+        code: 'USER_NOT_FOUND',
+        message: 'No account found with this email. Please check your email or sign up.',
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+      return res.status(401).json({
+        success: false,
+        code: 'INVALID_PASSWORD',
+        message: 'Incorrect password. Please try again.',
+      });
     }
 
     const userId = user._id.toString();
@@ -144,7 +162,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { userId, email: user.email, name: user.name },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '30d' }
     );
 
     res.json({
@@ -157,6 +175,7 @@ router.post('/login', async (req, res) => {
         email: user.email,
         homeAirport: user.homeAirport || '',
         currency: user.currency || 'INR',
+        friends: user.friends || [],
       },
     });
   } catch (error) {
@@ -264,6 +283,56 @@ const DEFAULT_FRIENDS = [
   { name: 'Aarav Sharma', email: 'aarav@tripnest.in' },
 ];
 
+// GET /api/auth/check-friend?email=...
+router.get('/check-friend', authenticateToken, async (req, res) => {
+  try {
+    const rawEmail = req.query.email;
+    if (!rawEmail) {
+      return res.status(400).json({ success: false, message: 'Email query parameter is required.' });
+    }
+    const searchEmail = rawEmail.trim().toLowerCase();
+    const userEmail = (req.user.email || '').toLowerCase().trim();
+
+    if (searchEmail === userEmail) {
+      return res.json({
+        success: true,
+        isSelf: true,
+        registered: false,
+        message: 'This is your own email address.',
+      });
+    }
+
+    const { isMongoConnected } = getMongoStatus();
+    let friendUser = null;
+    if (isMongoConnected) {
+      friendUser = await UserModel.findOne({
+        email: { $regex: new RegExp(`^${searchEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      }).select('name email');
+    } else {
+      friendUser = localStore.findOne('users', (u) => (u.email || '').toLowerCase().trim() === searchEmail);
+    }
+
+    if (friendUser) {
+      return res.json({
+        success: true,
+        registered: true,
+        user: {
+          name: friendUser.name,
+          email: friendUser.email,
+        },
+      });
+    } else {
+      return res.json({
+        success: true,
+        registered: false,
+        message: `No registered TripNest account found for "${searchEmail}".`,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/auth/friends
 router.get('/friends', authenticateToken, async (req, res) => {
   try {
@@ -279,8 +348,9 @@ router.get('/friends', authenticateToken, async (req, res) => {
 
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    let friends = user.friends;
-    if (!friends || friends.length === 0) {
+    let friends = Array.isArray(user.friends) ? user.friends : [];
+    // Seed demo friends only for demo user if empty
+    if (friends.length === 0 && user.email === 'alex.traveler@tripnest.com') {
       friends = DEFAULT_FRIENDS;
       if (isMongoConnected) {
         user.friends = friends;
@@ -302,14 +372,42 @@ router.post('/friends', authenticateToken, async (req, res) => {
     const { userId } = req.user;
     const { name, email } = req.body;
 
-    if (!name || !email) {
-      return res.status(400).json({ success: false, message: 'Friend name and email are required' });
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Friend's email address is required." });
     }
 
-    const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
+    const userEmail = (req.user.email || '').toLowerCase().trim();
+
+    // 1. Cannot add self
+    if (trimmedEmail === userEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot add your own email address as a friend.',
+      });
+    }
 
     const { isMongoConnected } = getMongoStatus();
+
+    // 2. CRITICAL: Verify friend has a registered account on TripNest
+    let friendUser = null;
+    if (isMongoConnected) {
+      friendUser = await UserModel.findOne({
+        email: { $regex: new RegExp(`^${trimmedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      }).select('-password');
+    } else {
+      friendUser = localStore.findOne('users', (u) => (u.email || '').toLowerCase().trim() === trimmedEmail);
+    }
+
+    if (!friendUser) {
+      return res.status(404).json({
+        success: false,
+        code: 'USER_NOT_REGISTERED',
+        message: `No TripNest account found for "${trimmedEmail}". Only friends who already have an account on this website can be added to your travel group. Ask your friend to sign up on TripNest first!`,
+      });
+    }
+
+    // 3. Find current user
     let user;
     if (isMongoConnected) {
       user = await UserModel.findById(userId);
@@ -319,13 +417,22 @@ router.post('/friends', authenticateToken, async (req, res) => {
 
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    let friends = Array.isArray(user.friends) && user.friends.length > 0 ? [...user.friends] : [...DEFAULT_FRIENDS];
+    let friends = Array.isArray(user.friends) ? [...user.friends] : [];
 
+    // 4. Check if already added
     if (friends.some((f) => (f.email || '').toLowerCase().trim() === trimmedEmail)) {
-      return res.status(409).json({ success: false, message: 'Friend with this email already exists' });
+      return res.status(409).json({
+        success: false,
+        message: `${friendUser.name || 'This friend'} (${trimmedEmail}) is already in your friends list.`,
+      });
     }
 
-    const newFriend = { name: trimmedName, email: trimmedEmail };
+    // Use registered user's official name, or fallback to provided name
+    const finalFriendName = friendUser.name || (name && name.trim()) || trimmedEmail.split('@')[0];
+    const newFriend = {
+      name: finalFriendName,
+      email: friendUser.email.toLowerCase().trim(),
+    };
     friends.push(newFriend);
 
     if (isMongoConnected) {
@@ -335,7 +442,12 @@ router.post('/friends', authenticateToken, async (req, res) => {
       localStore.update('users', (u) => u._id === userId, { friends });
     }
 
-    res.status(201).json({ success: true, message: 'Friend added!', data: friends });
+    res.status(201).json({
+      success: true,
+      message: `Verified! ${finalFriendName} has an active TripNest account and was added to your friends.`,
+      data: friends,
+      friend: newFriend,
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -357,7 +469,7 @@ router.delete('/friends/:email', authenticateToken, async (req, res) => {
 
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    let friends = Array.isArray(user.friends) && user.friends.length > 0 ? [...user.friends] : [...DEFAULT_FRIENDS];
+    let friends = Array.isArray(user.friends) ? [...user.friends] : [];
     friends = friends.filter((f) => (f.email || '').toLowerCase().trim() !== emailToRemove);
 
     if (isMongoConnected) {
@@ -374,3 +486,4 @@ router.delete('/friends/:email', authenticateToken, async (req, res) => {
 });
 
 export default router;
+

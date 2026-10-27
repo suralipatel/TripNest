@@ -60,6 +60,13 @@ export const api = {
   },
 
   // Friends
+  async checkFriend(email) {
+    const res = await fetch(`${API_BASE}/auth/check-friend?email=${encodeURIComponent(email)}`, {
+      headers: { ...getAuthHeader() },
+    });
+    return handleResponse(res);
+  },
+
   async getFriends() {
     const res = await fetch(`${API_BASE}/auth/friends`, {
       headers: { ...getAuthHeader() },

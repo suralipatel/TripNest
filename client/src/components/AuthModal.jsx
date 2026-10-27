@@ -159,8 +159,8 @@ export default function AuthModal({ onClose }) {
           {error && (
             <div
               style={{
-                padding: '10px 14px',
-                borderRadius: 10,
+                padding: '12px 14px',
+                borderRadius: 12,
                 background: '#FEF2F2',
                 border: '1px solid #FECACA',
                 color: '#DC2626',
@@ -169,7 +169,59 @@ export default function AuthModal({ onClose }) {
                 marginBottom: 14,
               }}
             >
-              {error}
+              <div>{error}</div>
+              {error.toLowerCase().includes('already exists') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLogin(true);
+                    setError('');
+                  }}
+                  style={{
+                    marginTop: 8,
+                    background: '#0D9488',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '6px 14px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <span>Switch to Sign In</span>
+                  <ArrowRight size={14} />
+                </button>
+              )}
+              {error.toLowerCase().includes('no account found') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLogin(false);
+                    setError('');
+                  }}
+                  style={{
+                    marginTop: 8,
+                    background: '#0D9488',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '6px 14px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <span>Create Account</span>
+                  <ArrowRight size={14} />
+                </button>
+              )}
             </div>
           )}
 
@@ -253,7 +305,6 @@ export default function AuthModal({ onClose }) {
             </div>
 
             <button
-
               type="submit"
               disabled={loading}
               className="btn-primary"
@@ -269,6 +320,55 @@ export default function AuthModal({ onClose }) {
               )}
             </button>
           </form>
+
+          <div style={{ textAlign: 'center', marginTop: 14 }}>
+            {isLogin ? (
+              <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: 0 }}>
+                Don't have an account yet?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLogin(false);
+                    setError('');
+                  }}
+                  style={{
+                    color: 'var(--teal-primary)',
+                    fontWeight: 700,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Create one now
+                </button>
+              </p>
+            ) : (
+              <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: 0 }}>
+                Already registered with this email?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLogin(true);
+                    setError('');
+                  }}
+                  style={{
+                    color: 'var(--teal-primary)',
+                    fontWeight: 700,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Sign In instead
+                </button>
+              </p>
+            )}
+          </div>
+
 
           {/* Database mode pill */}
           <div

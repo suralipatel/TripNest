@@ -43,6 +43,17 @@ export function getMongoStatus() {
 // Fallback JSON database management
 function readLocalDb() {
   if (!fs.existsSync(DATA_FILE)) {
+    const SEED_FILE = path.join(DATA_DIR, 'seed-db.json');
+    if (fs.existsSync(SEED_FILE)) {
+      try {
+        const seedRaw = fs.readFileSync(SEED_FILE, 'utf-8');
+        fs.writeFileSync(DATA_FILE, seedRaw, 'utf-8');
+        console.log('[TripNest DB] Initialized local-db.json from seed-db.json template successfully.');
+        return JSON.parse(seedRaw);
+      } catch (err) {
+        console.warn('[TripNest DB] Could not initialize from seed-db.json:', err.message);
+      }
+    }
     const initialData = { users: [], trips: [], tickets: [] };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
     return initialData;
@@ -57,6 +68,12 @@ function readLocalDb() {
 
 function writeLocalDb(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  try {
+    const SEED_FILE = path.join(DATA_DIR, 'seed-db.json');
+    fs.writeFileSync(SEED_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch {
+    // Non-fatal if seed cannot be written
+  }
 }
 
 export const localStore = {

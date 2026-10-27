@@ -26,23 +26,24 @@ export default function ProfileScreen({ trips = [], tickets = [], onOpenAuth }) 
       const cached = localStorage.getItem('tripnest_friends');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
-    return DEFAULT_FRIENDS;
+    return [];
   });
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newFriendName, setNewFriendName] = useState('');
   const [newFriendEmail, setNewFriendEmail] = useState('');
   const [friendError, setFriendError] = useState('');
+  const [friendLoading, setFriendLoading] = useState(false);
 
   // Fetch from backend and keep synced
   useEffect(() => {
     async function loadFriends() {
       try {
         const res = await api.getFriends();
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        if (res.success && Array.isArray(res.data)) {
           setFriends(res.data);
           localStorage.setItem('tripnest_friends', JSON.stringify(res.data));
         }
@@ -97,25 +98,34 @@ export default function ProfileScreen({ trips = [], tickets = [], onOpenAuth }) 
       setFriendError('Please enter a valid email address (e.g. name@gmail.com).');
       return;
     }
+    if (user && (user.email || '').toLowerCase().trim() === trimmedEmail) {
+      setFriendError('You cannot add your own email address as a friend.');
+      return;
+    }
     if (friends.some((f) => (f.email || '').toLowerCase().trim() === trimmedEmail)) {
       setFriendError('A friend with this email already exists in your list.');
       return;
     }
 
-    const newFriend = { name: trimmedName, email: trimmedEmail };
-    const updated = [...friends, newFriend];
-    setFriends(updated);
-    localStorage.setItem('tripnest_friends', JSON.stringify(updated));
-    setNewFriendName('');
-    setNewFriendEmail('');
-    setShowAddForm(false);
-
+    setFriendLoading(true);
     try {
-      await api.addFriend(newFriend);
+      const res = await api.addFriend({ name: trimmedName, email: trimmedEmail });
+      if (res.success) {
+        const addedFriend = res.friend || { name: trimmedName, email: trimmedEmail };
+        const updated = res.data || [...friends, addedFriend];
+        setFriends(updated);
+        localStorage.setItem('tripnest_friends', JSON.stringify(updated));
+        setNewFriendName('');
+        setNewFriendEmail('');
+        setShowAddForm(false);
+      }
     } catch (err) {
-      console.warn('Could not sync friend to backend:', err.message);
+      setFriendError(err.message || 'Could not add friend. Please make sure they have a TripNest account.');
+    } finally {
+      setFriendLoading(false);
     }
   };
+
 
   const handleDeleteFriend = async (emailToDelete) => {
     const updated = friends.filter(
@@ -411,10 +421,24 @@ export default function ProfileScreen({ trips = [], tickets = [], onOpenAuth }) 
                 className="form-input"
                 style={{ height: 38, fontSize: 13, background: '#FFFFFF' }}
               />
+              <p style={{ fontSize: 11, color: 'var(--teal-primary)', fontWeight: 600, margin: '2px 0 0' }}>
+                💡 Your friend must have a registered TripNest account to be added.
+              </p>
             </div>
 
             {friendError && (
-              <div style={{ color: '#EF4444', fontSize: 11.5, marginTop: 6, fontWeight: 600 }}>
+              <div
+                style={{
+                  color: '#DC2626',
+                  fontSize: 11.5,
+                  marginTop: 6,
+                  fontWeight: 600,
+                  background: '#FEF2F2',
+                  padding: '8px 10px',
+                  borderRadius: 8,
+                  border: '1px solid #FECACA',
+                }}
+              >
                 {friendError}
               </div>
             )}
@@ -422,6 +446,7 @@ export default function ProfileScreen({ trips = [], tickets = [], onOpenAuth }) 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
               <button
                 type="submit"
+                disabled={friendLoading}
                 className="btn-primary"
                 style={{
                   padding: '6px 14px',
@@ -432,10 +457,17 @@ export default function ProfileScreen({ trips = [], tickets = [], onOpenAuth }) 
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 5,
+                  opacity: friendLoading ? 0.75 : 1,
                 }}
               >
-                <Check size={13} strokeWidth={2.5} />
-                <span>Save Friend</span>
+                {friendLoading ? (
+                  <span>Verifying account...</span>
+                ) : (
+                  <>
+                    <Check size={13} strokeWidth={2.5} />
+                    <span>Save Friend</span>
+                  </>
+                )}
               </button>
             </div>
           </form>

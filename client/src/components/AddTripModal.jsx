@@ -169,20 +169,17 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
       const cached = localStorage.getItem('tripnest_friends');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
-    return [
-      { name: 'Priya Patel', email: 'priya@tripnest.in' },
-      { name: 'Rohan Mehta', email: 'rohan@tripnest.in' },
-      { name: 'Aarav Sharma', email: 'aarav@tripnest.in' },
-    ];
+    return [];
   });
 
   const [showQuickAddFriend, setShowQuickAddFriend] = useState(false);
   const [quickFriendName, setQuickFriendName] = useState('');
   const [quickFriendEmail, setQuickFriendEmail] = useState('');
   const [quickFriendError, setQuickFriendError] = useState('');
+  const [quickFriendLoading, setQuickFriendLoading] = useState(false);
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
 
   const displayFriends = savedFriends.filter((f) => {
@@ -199,7 +196,7 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
     async function loadSavedFriends() {
       try {
         const res = await api.getFriends();
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        if (res.success && Array.isArray(res.data)) {
           setSavedFriends(res.data);
           localStorage.setItem('tripnest_friends', JSON.stringify(res.data));
         }
@@ -251,29 +248,34 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
       return;
     }
 
-    const newFriend = { name, email };
-    const updatedSaved = [...savedFriends, newFriend];
-    setSavedFriends(updatedSaved);
-    localStorage.setItem('tripnest_friends', JSON.stringify(updatedSaved));
-
-    // Automatically select for this trip
-    if (!friends.some((f) => (f.email || '').toLowerCase().trim() === email)) {
-      setFriends([
-        ...friends,
-        { name, email, role: 'viewer', addedAt: new Date().toISOString() },
-      ]);
-    }
-
-    setQuickFriendName('');
-    setQuickFriendEmail('');
-    setShowQuickAddFriend(false);
-
+    setQuickFriendLoading(true);
     try {
-      await api.addFriend(newFriend);
+      const res = await api.addFriend({ name, email });
+      if (res.success) {
+        const addedFriend = res.friend || { name, email };
+        const updatedSaved = res.data || [...savedFriends, addedFriend];
+        setSavedFriends(updatedSaved);
+        localStorage.setItem('tripnest_friends', JSON.stringify(updatedSaved));
+
+        // Automatically select for this trip
+        if (!friends.some((f) => (f.email || '').toLowerCase().trim() === email)) {
+          setFriends([
+            ...friends,
+            { name: addedFriend.name || name, email, role: 'viewer', addedAt: new Date().toISOString() },
+          ]);
+        }
+
+        setQuickFriendName('');
+        setQuickFriendEmail('');
+        setShowQuickAddFriend(false);
+      }
     } catch (err) {
-      console.warn('Could not sync friend to backend:', err.message);
+      setQuickFriendError(err.message || 'Could not add friend. Please check their email.');
+    } finally {
+      setQuickFriendLoading(false);
     }
   };
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -692,14 +694,19 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
                       />
                     </div>
 
+                    <p style={{ fontSize: 11, color: 'var(--teal-primary)', fontWeight: 600, margin: '2px 0 0' }}>
+                      💡 Your friend must have a registered TripNest account to be added.
+                    </p>
+
                     {quickFriendError && (
-                      <div style={{ color: '#EF4444', fontSize: 11.5, fontWeight: 600 }}>
+                      <div style={{ color: '#EF4444', fontSize: 11.5, fontWeight: 600, background: '#FEF2F2', padding: '8px 10px', borderRadius: 8, border: '1px solid #FECACA' }}>
                         {quickFriendError}
                       </div>
                     )}
 
                     <button
                       type="button"
+                      disabled={quickFriendLoading}
                       onClick={handleQuickAddFriend}
                       className="btn-primary"
                       style={{
@@ -713,10 +720,17 @@ export default function AddTripModal({ onClose, onSave, tripToEdit = null }) {
                         justifyContent: 'center',
                         gap: 6,
                         marginTop: 2,
+                        opacity: quickFriendLoading ? 0.75 : 1,
                       }}
                     >
-                      <Check size={16} strokeWidth={2.5} />
-                      <span>Add & Select Friend</span>
+                      {quickFriendLoading ? (
+                        <span>Verifying account...</span>
+                      ) : (
+                        <>
+                          <Check size={16} strokeWidth={2.5} />
+                          <span>Add & Select Friend</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>

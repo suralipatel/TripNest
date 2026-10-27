@@ -15,6 +15,7 @@ client/.env
 
 # Local database file (contains personal account credentials)
 server/data/local-db.json
+!server/data/seed-db.json
 
 # Production builds
 dist/
